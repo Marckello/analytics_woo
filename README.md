@@ -27,28 +27,38 @@
   5. Cordyceps (1,715 ventas totales)
 - ✅ **Top 5 órdenes más grandes**: hasta $11,113.40 MXN
 
-### IA Conversacional
+### IA Conversacional Avanzada
 - ✅ **Chat integrado con OpenAI GPT-4o-mini**
-- ✅ **Datos exclusivos Agosto-Septiembre 2025**
-- ✅ **Consultas en lenguaje natural** (ejemplos reales probados):
+- ✅ **Zona horaria México (GMT-6)** - Entiende fechas en tiempo real
+- 🧠 **FECHAS RELATIVAS INTELIGENTES** (ejemplos reales probados):
+  - **"¿Cuánto vendimos hoy?"** → "Hoy, 29/09/2025, $1,213.61 MXN con 1 orden" ✅
+  - **"¿Cuál fue el producto más vendido ayer?"** → Análisis específico del 28/09 ✅
+  - **"¿Cuántas órdenes se hicieron el martes?"** → "El martes 23/09/2025, 5 órdenes, $7,833.68 MXN" ✅
+  - **"¿Cuál fue el mejor día de ventas esta semana?"** → Análisis automático del período ✅
+- 📊 **Consultas clásicas**:
   - "¿Cuánto vendimos en agosto 2025?" → "$90,011.90 MXN"
-  - "¿Cómo fueron las ventas comparado con septiembre?" → Análisis detallado con diferencias porcentuales
-  - "¿Cuál es el producto más vendido?" → "Rhodiola Rosea con 3,913 ventas"
   - "¿Quién es el cliente que más ha comprado?" → "María Flor Domínguez Ramos ($11,113.40 MXN)"
-- ✅ **Contexto inteligente** con análisis comparativo automático
-- ✅ **Respuestas profesionales** con insights de marketing digital
+- ✅ **Contexto inteligente** con datos organizados por fechas específicas
+- ✅ **Respuestas profesionales** con insights de marketing digital en tiempo real
 
 ## URIs Funcionales
 
-### API Endpoints
+### API Endpoints Inteligentes
 - `GET /api/dashboard` - Métricas principales del dashboard
-- `POST /api/chat` - Chat con IA (parámetro: `{"message": "tu consulta"}`)
+- `POST /api/chat` - **IA con fechas relativas** (parámetro: `{"message": "tu consulta"}`)
+  - ✅ Soporta "hoy", "ayer", "el martes", "esta semana"
+  - ✅ Zona horaria México automática (GMT-6)
+  - ✅ Contexto de fechas específicas
 - `GET /api/test-woo` - Verificación de conexión WooCommerce
 
-### Frontend
-- `/` - Dashboard principal con interfaz completa
-- `/static/app.js` - JavaScript del frontend
-- `/static/styles.css` - Estilos personalizados
+### Frontend Ultra Moderno
+- `/` - Dashboard principal con interfaz **completamente renovada**
+- 🎯 **Sugerencias inteligentes**: Botones dinámicos "Hoy", "Ayer", "El martes"
+- ⚡ **Animaciones suaves** en KPIs y chat
+- 🖼️ **Logo corporativo Adaptoheal** integrado
+- 📱 **Responsive perfecto** para móvil
+- `/static/app.js` - JavaScript optimizado con manejo de fechas
+- `/static/styles.css` - Estilos con gradientes y efectos glass
 
 ## Arquitectura de Datos
 

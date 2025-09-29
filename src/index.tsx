@@ -50,14 +50,79 @@ const fetchWooCommerceData = async (endpoint: string, env: Bindings, params?: st
   }
 }
 
-// Función para consultar OpenAI
+// Función para obtener fechas en zona horaria de México
+const getMexicoDate = () => {
+  const now = new Date()
+  const mexicoTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Mexico_City"}))
+  return mexicoTime
+}
+
+// Función para parsear fechas relativas
+const parseRelativeDate = (query: string, mexicoNow: Date) => {
+  const today = new Date(mexicoNow)
+  const yesterday = new Date(mexicoNow)
+  yesterday.setDate(yesterday.getDate() - 1)
+  
+  // Crear mapeo de días de la semana
+  const daysMap: Record<string, number> = {
+    'domingo': 0, 'lunes': 1, 'martes': 2, 'miércoles': 3, 
+    'jueves': 4, 'viernes': 5, 'sábado': 6
+  }
+  
+  let targetDate: Date | null = null
+  let dateDescription = ""
+  
+  if (/\bhoy\b/i.test(query)) {
+    targetDate = today
+    dateDescription = `HOY (${today.toLocaleDateString('es-MX')})`
+  } else if (/\bayer\b/i.test(query)) {
+    targetDate = yesterday  
+    dateDescription = `AYER (${yesterday.toLocaleDateString('es-MX')})`
+  } else if (/\b(el\s+)?(lunes|martes|miércoles|jueves|viernes|sábado|domingo)\b/i.test(query)) {
+    const dayMatch = query.match(/\b(lunes|martes|miércoles|jueves|viernes|sábado|domingo)\b/i)
+    if (dayMatch) {
+      const dayName = dayMatch[1].toLowerCase()
+      const targetDay = daysMap[dayName]
+      const currentDay = today.getDay()
+      
+      // Calcular cuántos días atrás está ese día de la semana
+      let daysAgo = (currentDay - targetDay + 7) % 7
+      if (daysAgo === 0) daysAgo = 7 // Si es el mismo día, tomar la semana pasada
+      
+      targetDate = new Date(today)
+      targetDate.setDate(targetDate.getDate() - daysAgo)
+      dateDescription = `${dayName.toUpperCase()} (${targetDate.toLocaleDateString('es-MX')})`
+    }
+  }
+  
+  return { targetDate, dateDescription }
+}
+
+// Función para consultar OpenAI con manejo de fechas inteligente
 const queryOpenAI = async (prompt: string, context: string, env: Bindings) => {
-  const currentDate = new Date().toLocaleDateString('es-MX', { 
+  const mexicoNow = getMexicoDate()
+  const currentDate = mexicoNow.toLocaleDateString('es-MX', { 
     year: 'numeric', 
     month: 'long', 
     day: 'numeric',
     weekday: 'long'
   })
+  
+  const currentTime = mexicoNow.toLocaleTimeString('es-MX', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+  
+  // Parsear fecha relativa si existe
+  const { targetDate, dateDescription } = parseRelativeDate(prompt, mexicoNow)
+  
+  let dateContext = ""
+  if (targetDate) {
+    dateContext = `\n\n🗓️ CONSULTA ESPECÍFICA DE FECHA: ${dateDescription}
+    - Buscar datos específicos de esta fecha
+    - Si no hay datos de esa fecha exacta, mencionarlo claramente
+    - Comparar con datos disponibles cuando sea relevante`
+  }
   
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -72,25 +137,30 @@ const queryOpenAI = async (prompt: string, context: string, env: Bindings) => {
           role: 'system',
           content: `Eres un analista de datos especializado en WooCommerce para Adaptoheal México, empresa de suplementos alimenticios.
 
-INFORMACIÓN IMPORTANTE:
-- Fecha actual: ${currentDate}
+🇲🇽 INFORMACIÓN TEMPORAL (ZONA HORARIA MÉXICO):
+- Fecha y hora actual: ${currentDate}, ${currentTime}
 - Año actual: 2025
+- Zona horaria: America/Mexico_City (GMT-6)
 - Solo tienes datos de AGOSTO y SEPTIEMBRE 2025
-- Todos los datos del dashboard son de los "últimos 30 días" desde hoy
-- Los productos principales son suplementos: Rhodiola, Ashwagandha, Reishi, Cordyceps, etc.
 
-INSTRUCCIONES:
-1. Responde SOLO sobre datos de Agosto y Septiembre 2025
-2. Si preguntan sobre otras fechas, explica que solo tienes datos de estos 2 meses
-3. Usa formato de dinero mexicano: $1,234.56 MXN
-4. Sé específico con números y fechas
-5. Habla como experto en e-commerce de suplementos
-6. Menciona insights relevantes para marketing digital
+📊 DATOS DISPONIBLES:
+${context}${dateContext}
 
-DATOS DISPONIBLES:
-${context}
+🎯 INSTRUCCIONES PARA FECHAS RELATIVAS:
+- "HOY" = ${mexicoNow.toLocaleDateString('es-MX')} (busca datos de esta fecha exacta)
+- "AYER" = ${new Date(mexicoNow.getTime() - 24*60*60*1000).toLocaleDateString('es-MX')}
+- "EL MARTES/LUNES/etc." = El último día de esa semana dentro del período disponible
+- Si preguntan por fechas fuera de agosto-septiembre 2025, explica limitaciones
+- Si no hay datos de la fecha específica, sugiere la fecha más cercana con datos
 
-Responde de manera directa, profesional y con datos concretos.`
+💰 FORMATO DE RESPUESTAS:
+- Dinero: $1,234.56 MXN
+- Fechas: DD/MM/YYYY (formato mexicano)
+- Sé específico y directo
+- Proporciona insights de marketing cuando sea relevante
+- Si no hay datos exactos de la fecha pedida, sé transparente
+
+Responde como experto en e-commerce de suplementos con conocimiento del mercado mexicano.`
         },
         {
           role: 'user', 
@@ -226,14 +296,43 @@ app.post('/api/chat', async (c) => {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
     
+    // Organizar datos por fechas específicas para consultas de "hoy", "ayer", etc.
+    const ordersByDate = new Map<string, any[]>()
+    const salesByDate = new Map<string, number>()
+    
+    orders.forEach((order: any) => {
+      const orderDate = new Date(order.date_created).toLocaleDateString('es-MX')
+      if (!ordersByDate.has(orderDate)) {
+        ordersByDate.set(orderDate, [])
+        salesByDate.set(orderDate, 0)
+      }
+      ordersByDate.get(orderDate)!.push(order)
+      salesByDate.set(orderDate, salesByDate.get(orderDate)! + parseFloat(order.total))
+    })
+    
+    // Preparar resumen de fechas recientes (últimos 7 días con datos)
+    const recentDatesData = Array.from(salesByDate.entries())
+      .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
+      .slice(0, 7)
+      .map(([date, sales]) => ({
+        fecha: date,
+        ordenes: ordersByDate.get(date)!.length,
+        ventas: sales
+      }))
+    
     // Preparar contexto detallado para la IA
     const context = `
     PERÍODO DE DATOS: AGOSTO - SEPTIEMBRE 2025 EXCLUSIVAMENTE
     
-    RESUMEN GENERAL (Últimos 30 días):
+    RESUMEN GENERAL (Período completo):
     - Total órdenes: ${orders.length}
     - Ventas totales: $${totalSales.toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN
     - Ticket promedio: $${avgTicket.toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN
+    
+    📅 DATOS POR FECHAS RECIENTES (para consultas de "hoy", "ayer", etc.):
+    ${recentDatesData.map(d => 
+      `- ${d.fecha}: ${d.ordenes} órdenes, $${d.ventas.toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN`
+    ).join('\\n')}
     
     ANÁLISIS DETALLADO POR MES:
     
@@ -563,21 +662,29 @@ app.get('/', (c) => {
                         <div class="mb-6">
                             <p class="text-sm font-medium text-gray-600 mb-3">Consultas sugeridas:</p>
                             <div class="flex flex-wrap gap-2">
-                                <button onclick="askSuggestion('¿Cuánto vendimos en agosto 2025?')" 
-                                        class="px-3 py-1 text-xs bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
-                                    Ventas agosto
+                                <button onclick="askSuggestion('¿Cuánto vendimos hoy?')" 
+                                        class="px-3 py-1 text-xs bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
+                                    <i class="fas fa-clock mr-1"></i>Hoy
                                 </button>
-                                <button onclick="askSuggestion('¿Cuál es el producto más popular de septiembre?')" 
-                                        class="px-3 py-1 text-xs bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
-                                    Producto top
+                                <button onclick="askSuggestion('¿Cuál fue el producto más vendido ayer?')" 
+                                        class="px-3 py-1 text-xs bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
+                                    <i class="fas fa-calendar-day mr-1"></i>Ayer
+                                </button>
+                                <button onclick="askSuggestion('¿Cuántas órdenes se hicieron el martes?')" 
+                                        class="px-3 py-1 text-xs bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
+                                    <i class="fas fa-calendar-week mr-1"></i>El martes
                                 </button>
                                 <button onclick="askSuggestion('¿Quién es el cliente que más ha comprado?')" 
-                                        class="px-3 py-1 text-xs bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
-                                    Cliente VIP
+                                        class="px-3 py-1 text-xs bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
+                                    <i class="fas fa-crown mr-1"></i>Cliente VIP
                                 </button>
-                                <button onclick="askSuggestion('¿Cómo van las ventas comparado con agosto?')" 
+                                <button onclick="askSuggestion('¿Cómo van las ventas esta semana?')" 
                                         class="px-3 py-1 text-xs bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
-                                    Comparativa
+                                    <i class="fas fa-chart-line mr-1"></i>Esta semana
+                                </button>
+                                <button onclick="askSuggestion('¿Cuál fue el mejor día de ventas?')" 
+                                        class="px-3 py-1 text-xs bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
+                                    <i class="fas fa-medal mr-1"></i>Mejor día
                                 </button>
                             </div>
                         </div>
@@ -600,7 +707,7 @@ app.get('/', (c) => {
                                     <input 
                                         id="chat-input" 
                                         type="text" 
-                                        placeholder="Escribe tu consulta aquí... ej: ¿Cuánto vendimos en agosto 2025?"
+                                        placeholder="Pregúntame sobre cualquier fecha... ej: ¿Cuánto vendimos hoy? ¿Qué tal ayer? ¿El martes?"
                                         class="w-full px-2 py-2 text-gray-700 placeholder-gray-400 border-0 focus:outline-none bg-transparent"
                                         onkeypress="handleChatKeyPress(event)"
                                     >
