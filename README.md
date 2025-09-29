@@ -9,29 +9,34 @@
 - **Desarrollo (Sandbox)**: https://3000-i357gmqhrn2gdx2jad3oz-6532622b.e2b.dev
 - **API Dashboard**: https://3000-i357gmqhrn2gdx2jad3oz-6532622b.e2b.dev/api/dashboard
 - **API Chat IA**: https://3000-i357gmqhrn2gdx2jad3oz-6532622b.e2b.dev/api/chat
-- **GitHub**: (pendiente configuración)
+- **GitHub**: (pendiente - para servidor propio)
 
 ## Funcionalidades Completadas
 
 ### Dashboard Principal
-- ✅ **Ventas totales de los últimos 30 días**: $79,866.59 MXN (42 órdenes)
-- ✅ **Ticket promedio**: $1,901.59 MXN
+- ✅ **Datos exclusivos Agosto-Septiembre 2025**: Filtrado específico del período
+- ✅ **Ventas totales**: $163,439.79 MXN (72 órdenes completadas)
+- ✅ **Análisis mensual**:
+  - **Agosto 2025**: $90,011.90 MXN (31 órdenes) - Ticket: $2,903.61 MXN
+  - **Septiembre 2025**: $73,427.89 MXN (41 órdenes) - Ticket: $1,790.92 MXN
 - ✅ **Top 5 productos más vendidos**:
-  1. Rhodiola Rosea (3,913 ventas)
-  2. Ashwagandha (2,647 ventas)
-  3. Sauzgatillo (1,914 ventas)
-  4. Reishi (1,755 ventas)
-  5. Cordyceps (1,715 ventas)
-- ✅ **Top 5 órdenes más grandes**: hasta $7,377.20 MXN
+  1. Rhodiola Rosea (3,913 ventas totales)
+  2. Ashwagandha (2,647 ventas totales)
+  3. Sauzgatillo (1,914 ventas totales)
+  4. Reishi (1,755 ventas totales)
+  5. Cordyceps (1,715 ventas totales)
+- ✅ **Top 5 órdenes más grandes**: hasta $11,113.40 MXN
 
 ### IA Conversacional
 - ✅ **Chat integrado con OpenAI GPT-4o-mini**
-- ✅ **Consultas en lenguaje natural**:
-  - "¿Cuánto vendimos ayer?"
-  - "¿Cuál es el cliente que más ha comprado?"
-  - "¿Qué producto es más popular esta semana?"
-- ✅ **Contexto automático** con datos actuales de WooCommerce
-- ✅ **Respuestas en español** adaptadas al negocio
+- ✅ **Datos exclusivos Agosto-Septiembre 2025**
+- ✅ **Consultas en lenguaje natural** (ejemplos reales probados):
+  - "¿Cuánto vendimos en agosto 2025?" → "$90,011.90 MXN"
+  - "¿Cómo fueron las ventas comparado con septiembre?" → Análisis detallado con diferencias porcentuales
+  - "¿Cuál es el producto más vendido?" → "Rhodiola Rosea con 3,913 ventas"
+  - "¿Quién es el cliente que más ha comprado?" → "María Flor Domínguez Ramos ($11,113.40 MXN)"
+- ✅ **Contexto inteligente** con análisis comparativo automático
+- ✅ **Respuestas profesionales** con insights de marketing digital
 
 ## URIs Funcionales
 
@@ -85,18 +90,21 @@ npm run deploy:prod
 ## Deployment
 
 ### Estado Actual
-- **Plataforma**: Cloudflare Pages (preparado)
-- **Status**: ✅ Funcionando en sandbox de desarrollo
+- **Plataforma**: Listo para servidor propio (código optimizado)
+- **Status**: ✅ Completamente funcional en sandbox
 - **Tech Stack**: 
-  - Backend: Hono + TypeScript + Cloudflare Workers
-  - Frontend: TailwindCSS + Vanilla JS + CDNs
-  - IA: OpenAI GPT-4o-mini
-  - Datos: WooCommerce REST API v3
+  - Backend: Hono + TypeScript (compatible con Node.js y Edge)
+  - Frontend: Interfaz moderna con TailwindCSS + animaciones
+  - IA: OpenAI GPT-4o-mini con contexto especializado
+  - Datos: WooCommerce REST API v3 con filtros de fecha precisos
+  - Logo: Integrado logo oficial de Adaptoheal
 
-### Pendiente
-- ⏳ Configuración API Cloudflare para deployment
-- ⏳ Activación cache D1 para optimización
-- ⏳ Setup repositorio GitHub para CI/CD
+### Para Servidor Propio
+- ✅ **Código completamente portable** (sin dependencias de Cloudflare)
+- ✅ **Variables de entorno configuradas** (.dev.vars para desarrollo)
+- ✅ **Logo corporativo integrado**
+- ✅ **Interfaz moderna y responsive**
+- ✅ **IA optimizada** para datos específicos de agosto-septiembre 2025
 
 ## Configuración de Secrets
 

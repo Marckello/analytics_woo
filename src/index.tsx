@@ -52,6 +52,13 @@ const fetchWooCommerceData = async (endpoint: string, env: Bindings, params?: st
 
 // Función para consultar OpenAI
 const queryOpenAI = async (prompt: string, context: string, env: Bindings) => {
+  const currentDate = new Date().toLocaleDateString('es-MX', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric',
+    weekday: 'long'
+  })
+  
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -63,21 +70,35 @@ const queryOpenAI = async (prompt: string, context: string, env: Bindings) => {
       messages: [
         {
           role: 'system',
-          content: `Eres un asistente especializado en análisis de datos de WooCommerce para Adaptoheal. 
-          Respondes preguntas sobre ventas, productos, clientes y órdenes basándote en los datos proporcionados.
-          Siempre responde en español y de manera clara y directa.
-          Si no tienes suficientes datos para responder, menciona qué información adicional necesitas.
-          
-          Contexto de datos disponibles:
-          ${context}`
+          content: `Eres un analista de datos especializado en WooCommerce para Adaptoheal México, empresa de suplementos alimenticios.
+
+INFORMACIÓN IMPORTANTE:
+- Fecha actual: ${currentDate}
+- Año actual: 2025
+- Solo tienes datos de AGOSTO y SEPTIEMBRE 2025
+- Todos los datos del dashboard son de los "últimos 30 días" desde hoy
+- Los productos principales son suplementos: Rhodiola, Ashwagandha, Reishi, Cordyceps, etc.
+
+INSTRUCCIONES:
+1. Responde SOLO sobre datos de Agosto y Septiembre 2025
+2. Si preguntan sobre otras fechas, explica que solo tienes datos de estos 2 meses
+3. Usa formato de dinero mexicano: $1,234.56 MXN
+4. Sé específico con números y fechas
+5. Habla como experto en e-commerce de suplementos
+6. Menciona insights relevantes para marketing digital
+
+DATOS DISPONIBLES:
+${context}
+
+Responde de manera directa, profesional y con datos concretos.`
         },
         {
           role: 'user', 
           content: prompt
         }
       ],
-      max_tokens: 500,
-      temperature: 0.7
+      max_tokens: 600,
+      temperature: 0.3
     })
   })
 
@@ -94,16 +115,15 @@ app.get('/api/dashboard', async (c) => {
   const { env } = c
   
   try {
-    // Calcular fecha de hace 30 días
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    const dateFilter = thirtyDaysAgo.toISOString()
+    // Filtrar solo Agosto y Septiembre 2025
+    const augustStart = new Date('2025-08-01T00:00:00Z').toISOString()
+    const septemberEnd = new Date('2025-09-30T23:59:59Z').toISOString()
     
-    // Obtener órdenes de los últimos 30 días
+    // Obtener órdenes de Agosto-Septiembre 2025 solamente
     const orders = await fetchWooCommerceData(
       'orders', 
       env,
-      `after=${dateFilter}&per_page=100&status=completed`
+      `after=${augustStart}&before=${septemberEnd}&per_page=100&status=completed`
     )
     
     // Obtener productos más vendidos
@@ -164,27 +184,95 @@ app.post('/api/chat', async (c) => {
   try {
     const startTime = Date.now()
     
-    // Obtener datos recientes para contexto
+    // Obtener datos específicos de agosto-septiembre 2025 para contexto
+    const augustStart = new Date('2025-08-01T00:00:00Z').toISOString()
+    const septemberEnd = new Date('2025-09-30T23:59:59Z').toISOString()
+    
     const [orders, products, customers] = await Promise.all([
-      fetchWooCommerceData('orders', env, 'per_page=50&orderby=date&order=desc'),
+      fetchWooCommerceData('orders', env, `after=${augustStart}&before=${septemberEnd}&per_page=100&status=completed`),
       fetchWooCommerceData('products', env, 'per_page=20&orderby=popularity'),
       fetchWooCommerceData('customers', env, 'per_page=20&orderby=registered_date&order=desc')
     ])
     
-    // Preparar contexto para la IA
+    // Calcular métricas detalladas
+    const totalSales = orders.reduce((sum: number, o: any) => sum + parseFloat(o.total), 0)
+    const avgTicket = orders.length > 0 ? totalSales / orders.length : 0
+    
+    // Análisis por mes (corrección de timezone)
+    const augustOrders = orders.filter((o: any) => {
+      const date = new Date(o.date_created)
+      const month = date.getMonth()
+      const year = date.getFullYear()
+      return year === 2025 && month === 7 // Agosto = mes 7 (0-indexed)
+    })
+    const septemberOrders = orders.filter((o: any) => {
+      const date = new Date(o.date_created)
+      const month = date.getMonth()  
+      const year = date.getFullYear()
+      return year === 2025 && month === 8 // Septiembre = mes 8 (0-indexed)
+    })
+    
+    const augustSales = augustOrders.reduce((sum: number, o: any) => sum + parseFloat(o.total), 0)
+    const septemberSales = septemberOrders.reduce((sum: number, o: any) => sum + parseFloat(o.total), 0)
+    
+    // Top clientes del período
+    const customerSales = new Map()
+    orders.forEach((order: any) => {
+      const customerName = `${order.billing.first_name} ${order.billing.last_name}`.trim()
+      const currentTotal = customerSales.get(customerName) || 0
+      customerSales.set(customerName, currentTotal + parseFloat(order.total))
+    })
+    const topCustomers = Array.from(customerSales.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+    
+    // Preparar contexto detallado para la IA
     const context = `
-    DATOS DE ÓRDENES (${orders.length} órdenes recientes):
-    - Total de órdenes: ${orders.length}
-    - Ventas totales: $${orders.reduce((sum: number, o: any) => sum + parseFloat(o.total), 0).toFixed(2)}
-    - Ticket promedio: $${(orders.reduce((sum: number, o: any) => sum + parseFloat(o.total), 0) / orders.length).toFixed(2)}
+    PERÍODO DE DATOS: AGOSTO - SEPTIEMBRE 2025 EXCLUSIVAMENTE
     
-    PRODUCTOS TOP (${products.length} productos):
-    ${products.slice(0, 10).map((p: any) => `- ${p.name}: $${p.price}, Ventas: ${p.total_sales || 0}`).join('\\n')}
+    RESUMEN GENERAL (Últimos 30 días):
+    - Total órdenes: ${orders.length}
+    - Ventas totales: $${totalSales.toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN
+    - Ticket promedio: $${avgTicket.toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN
     
-    CLIENTES (${customers.length} clientes):
-    ${customers.slice(0, 5).map((c: any) => `- ${c.first_name} ${c.last_name}: ${c.email}, Gastado: $${c.total_spent || 0}`).join('\\n')}
+    ANÁLISIS DETALLADO POR MES:
     
-    Fecha actual: ${new Date().toLocaleDateString('es-ES')}
+    📊 AGOSTO 2025:
+    - Órdenes completadas: ${augustOrders.length}
+    - Ventas totales: $${augustSales.toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN
+    - Ticket promedio: $${augustOrders.length > 0 ? (augustSales/augustOrders.length).toLocaleString('es-MX', {minimumFractionDigits: 2}) : '0.00'} MXN
+    ${augustOrders.length > 0 ? `- Orden más alta agosto: $${Math.max(...augustOrders.map((o: any) => parseFloat(o.total))).toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN` : ''}
+    
+    📊 SEPTIEMBRE 2025:
+    - Órdenes completadas: ${septemberOrders.length}  
+    - Ventas totales: $${septemberSales.toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN
+    - Ticket promedio: $${septemberOrders.length > 0 ? (septemberSales/septemberOrders.length).toLocaleString('es-MX', {minimumFractionDigits: 2}) : '0.00'} MXN
+    ${septemberOrders.length > 0 ? `- Orden más alta septiembre: $${Math.max(...septemberOrders.map((o: any) => parseFloat(o.total))).toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN` : ''}
+    
+    📈 COMPARATIVA:
+    - Diferencia en ventas: ${septemberSales > augustSales ? '+' : ''}$${(septemberSales - augustSales).toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN (${((septemberSales - augustSales) / (augustSales || 1) * 100).toFixed(1)}%)
+    - Diferencia en órdenes: ${septemberOrders.length - augustOrders.length} órdenes
+    - Mes con mejor performance: ${septemberSales > augustSales ? 'Septiembre' : 'Agosto'} 2025
+    
+    TOP 5 PRODUCTOS MÁS VENDIDOS:
+    ${products.slice(0, 5).map((p: any, i: number) => 
+      `${i+1}. ${p.name}: ${p.total_sales || 0} ventas totales, Precio: $${parseFloat(p.price).toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN`
+    ).join('\\n')}
+    
+    TOP 5 CLIENTES (por compras en el período):
+    ${topCustomers.map((c: any, i: number) => 
+      `${i+1}. ${c[0]}: $${c[1].toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN`
+    ).join('\\n')}
+    
+    ÓRDENES MÁS GRANDES DEL PERÍODO:
+    ${orders.sort((a: any, b: any) => parseFloat(b.total) - parseFloat(a.total))
+      .slice(0, 5)
+      .map((o: any, i: number) => 
+        `${i+1}. Orden #${o.id}: $${parseFloat(o.total).toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN - ${o.billing.first_name} ${o.billing.last_name} (${new Date(o.date_created).toLocaleDateString('es-MX')})`
+      ).join('\\n')}
+    
+    PRODUCTOS ADAPTOHEAL:
+    ${products.slice(0, 10).map((p: any) => `- ${p.name}: Stock ${p.stock_quantity || 'N/A'}, Precio $${parseFloat(p.price).toFixed(2)} MXN`).join('\\n')}
     `
     
     const response = await queryOpenAI(message, context, env)
@@ -232,6 +320,8 @@ app.get('/api/test-woo', async (c) => {
   }
 })
 
+
+
 // Ruta principal con el dashboard
 app.get('/', (c) => {
   return c.html(`
@@ -242,137 +332,293 @@ app.get('/', (c) => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Adaptoheal Analytics - Dashboard Inteligente</title>
         <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  'adaptoheal': {
+                    50: '#f0f9ff',
+                    100: '#e0f2fe', 
+                    500: '#0ea5e9',
+                    600: '#0284c7',
+                    700: '#0369a1',
+                    800: '#075985',
+                    900: '#0c4a6e'
+                  }
+                }
+              }
+            }
+          }
+        </script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+          body { font-family: 'Inter', sans-serif; }
+          .glass-effect { 
+            background: rgba(255, 255, 255, 0.8); 
+            backdrop-filter: blur(10px); 
+            border: 1px solid rgba(255, 255, 255, 0.2); 
+          }
+          .gradient-bg { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+          }
+          .card-hover { 
+            transition: all 0.3s ease; 
+          }
+          .card-hover:hover { 
+            transform: translateY(-4px); 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); 
+          }
+          .pulse-dot {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+          }
+        </style>
     </head>
-    <body class="bg-gray-50 min-h-screen">
-        <div class="container mx-auto px-4 py-8">
-            <!-- Header -->
-            <header class="mb-8">
-                <div class="bg-white rounded-lg shadow-lg p-6">
-                    <h1 class="text-3xl font-bold text-gray-800 flex items-center">
-                        <i class="fas fa-chart-line mr-3 text-blue-600"></i>
-                        Adaptoheal Analytics
-                    </h1>
-                    <p class="text-gray-600 mt-2">Dashboard inteligente con IA para tu tienda WooCommerce</p>
+    <body class="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
+        <!-- Modern Header with Gradient -->
+        <div class="gradient-bg shadow-xl">
+            <div class="container mx-auto px-6 py-8">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <img src="https://www.adaptohealmx.com/wp-content/uploads/2025/05/Logo1-300x86.webp" 
+                             alt="Adaptoheal México" 
+                             class="h-12 w-auto">
+                        <div>
+                            <h1 class="text-3xl font-bold text-white">Analytics Dashboard</h1>
+                            <p class="text-blue-100 mt-1">Datos Agosto - Septiembre 2025 | Análisis Inteligente</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="pulse-dot w-3 h-3 bg-green-400 rounded-full"></div>
+                        <span class="text-white text-sm font-medium">En vivo</span>
+                    </div>
                 </div>
-            </header>
+            </div>
+        </div>
 
-            <!-- Loading State -->
-            <div id="loading" class="flex justify-center items-center py-12">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                <span class="ml-3 text-gray-600">Cargando datos...</span>
+        <div class="container mx-auto px-6 py-8 -mt-4">
+
+            <!-- Modern Loading State -->
+            <div id="loading" class="flex flex-col justify-center items-center py-16">
+                <div class="relative">
+                    <div class="animate-spin rounded-full h-16 w-16 border-4 border-blue-200"></div>
+                    <div class="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent absolute top-0"></div>
+                </div>
+                <div class="mt-6 text-center">
+                    <p class="text-lg font-medium text-gray-700">Conectando con WooCommerce</p>
+                    <p class="text-sm text-gray-500 mt-2">Analizando datos de Agosto - Septiembre 2025...</p>
+                </div>
             </div>
 
-            <!-- Dashboard Content -->
-            <div id="dashboard" class="hidden">
-                <!-- KPIs Row -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white p-6 rounded-lg shadow-lg">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm font-medium text-gray-600">Ventas (30 días)</p>
-                                <p id="total-sales" class="text-2xl font-bold text-green-600">$0</p>
+            <!-- Modern Dashboard Content -->
+            <div id="dashboard" class="hidden space-y-8">
+                <!-- Modern KPIs Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <!-- Ventas Card -->
+                    <div class="glass-effect rounded-xl p-6 card-hover">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600">
+                                <i class="fas fa-chart-line text-xl text-white"></i>
                             </div>
-                            <i class="fas fa-dollar-sign text-3xl text-green-600"></i>
+                            <span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">AGO-SEP</span>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-600 mb-1">Ventas Totales</p>
+                            <p id="total-sales" class="text-2xl font-bold text-gray-900">$0</p>
+                            <p class="text-xs text-gray-500 mt-1">Últimos 30 días</p>
                         </div>
                     </div>
 
-                    <div class="bg-white p-6 rounded-lg shadow-lg">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm font-medium text-gray-600">Ticket Promedio</p>
-                                <p id="avg-ticket" class="text-2xl font-bold text-blue-600">$0</p>
+                    <!-- Ticket Promedio Card -->
+                    <div class="glass-effect rounded-xl p-6 card-hover">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-600">
+                                <i class="fas fa-receipt text-xl text-white"></i>
                             </div>
-                            <i class="fas fa-receipt text-3xl text-blue-600"></i>
+                            <span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">PROMEDIO</span>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-600 mb-1">Ticket Promedio</p>
+                            <p id="avg-ticket" class="text-2xl font-bold text-gray-900">$0</p>
+                            <p class="text-xs text-gray-500 mt-1">Por orden completada</p>
                         </div>
                     </div>
 
-                    <div class="bg-white p-6 rounded-lg shadow-lg">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm font-medium text-gray-600">Órdenes</p>
-                                <p id="orders-count" class="text-2xl font-bold text-purple-600">0</p>
+                    <!-- Órdenes Card -->
+                    <div class="glass-effect rounded-xl p-6 card-hover">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-600">
+                                <i class="fas fa-shopping-bag text-xl text-white"></i>
                             </div>
-                            <i class="fas fa-shopping-cart text-3xl text-purple-600"></i>
+                            <span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">TOTAL</span>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-600 mb-1">Órdenes Completadas</p>
+                            <p id="orders-count" class="text-2xl font-bold text-gray-900">0</p>
+                            <p class="text-xs text-gray-500 mt-1">Últimos 30 días</p>
                         </div>
                     </div>
 
-                    <div class="bg-white p-6 rounded-lg shadow-lg">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm font-medium text-gray-600">Estado</p>
-                                <p id="connection-status" class="text-sm font-bold text-green-600">
-                                    <i class="fas fa-check-circle mr-1"></i>Conectado
-                                </p>
+                    <!-- Estado Card -->
+                    <div class="glass-effect rounded-xl p-6 card-hover">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600">
+                                <i class="fas fa-wifi text-xl text-white"></i>
                             </div>
-                            <i class="fas fa-plug text-3xl text-green-600"></i>
+                            <div class="flex items-center space-x-1">
+                                <div class="w-2 h-2 bg-green-500 rounded-full pulse-dot"></div>
+                                <span class="text-xs font-medium text-green-600">LIVE</span>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-600 mb-1">Conexión API</p>
+                            <p id="connection-status" class="text-lg font-bold text-green-600">
+                                <i class="fas fa-check-circle mr-1"></i>Conectado
+                            </p>
+                            <p class="text-xs text-gray-500 mt-1">WooCommerce API v3</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Charts and Tables Row -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <!-- Top Products -->
-                    <div class="bg-white p-6 rounded-lg shadow-lg">
-                        <h2 class="text-xl font-bold text-gray-800 mb-4">
-                            <i class="fas fa-trophy mr-2 text-yellow-500"></i>
-                            Top 5 Productos
-                        </h2>
-                        <div id="top-products" class="space-y-3">
+                <!-- Modern Analytics Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Top Products Card -->
+                    <div class="glass-effect rounded-xl p-8 card-hover">
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 rounded-lg bg-gradient-to-r from-yellow-400 to-orange-500">
+                                    <i class="fas fa-crown text-lg text-white"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-bold text-gray-800">Top 5 Productos</h2>
+                                    <p class="text-sm text-gray-500">Más vendidos (Ago-Sep 2025)</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xs font-medium text-yellow-600 bg-yellow-100 px-2 py-1 rounded-full">
+                                    <i class="fas fa-fire mr-1"></i>HOT
+                                </span>
+                            </div>
+                        </div>
+                        <div id="top-products" class="space-y-4">
                             <!-- Dynamic content -->
                         </div>
                     </div>
 
-                    <!-- Top Orders -->
-                    <div class="bg-white p-6 rounded-lg shadow-lg">
-                        <h2 class="text-xl font-bold text-gray-800 mb-4">
-                            <i class="fas fa-award mr-2 text-green-500"></i>
-                            Top 5 Órdenes
-                        </h2>
-                        <div id="top-orders" class="space-y-3">
+                    <!-- Top Orders Card -->
+                    <div class="glass-effect rounded-xl p-8 card-hover">
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600">
+                                    <i class="fas fa-medal text-lg text-white"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-bold text-gray-800">Top 5 Órdenes</h2>
+                                    <p class="text-sm text-gray-500">Mayor valor (Ago-Sep 2025)</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-1 rounded-full">
+                                    <i class="fas fa-dollar-sign mr-1"></i>VIP
+                                </span>
+                            </div>
+                        </div>
+                        <div id="top-orders" class="space-y-4">
                             <!-- Dynamic content -->
                         </div>
                     </div>
                 </div>
 
-                <!-- AI Chat Section -->
-                <div class="bg-white rounded-lg shadow-lg p-6">
-                    <h2 class="text-xl font-bold text-gray-800 mb-4">
-                        <i class="fas fa-robot mr-2 text-indigo-600"></i>
-                        Consulta con IA
-                    </h2>
-                    <p class="text-gray-600 mb-4">
-                        Pregúntame cualquier cosa sobre tus datos de ventas. Ejemplos:
-                        "¿Cuánto vendimos ayer?", "¿Cuál es el cliente que más ha comprado?", "¿Qué producto es más popular?"
-                    </p>
-                    
-                    <!-- Chat Messages -->
-                    <div id="chat-messages" class="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto mb-4">
-                        <div class="text-center text-gray-500 text-sm">
-                            <i class="fas fa-comments mr-1"></i>
-                            ¡Haz tu primera pregunta para empezar!
+                <!-- Modern AI Chat Section -->
+                <div class="glass-effect rounded-xl overflow-hidden">
+                    <!-- Chat Header -->
+                    <div class="bg-gradient-to-r from-indigo-600 to-purple-700 p-6">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 rounded-lg bg-white/20 backdrop-blur">
+                                    <i class="fas fa-brain text-xl text-white"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-bold text-white">Consulta con IA</h2>
+                                    <p class="text-indigo-100 text-sm">Analista especializado en datos de Adaptoheal</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-green-400 rounded-full pulse-dot"></div>
+                                <span class="text-white text-xs font-medium">GPT-4o-mini</span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Chat Input -->
-                    <div class="flex gap-2">
-                        <input 
-                            id="chat-input" 
-                            type="text" 
-                            placeholder="Escribe tu pregunta aquí..."
-                            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            onkeypress="handleChatKeyPress(event)"
-                        >
-                        <button 
-                            id="chat-send" 
-                            onclick="sendChatMessage()" 
-                            class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                            disabled
-                        >
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
+                    <!-- Chat Body -->
+                    <div class="p-6">
+                        <!-- Suggestion Pills -->
+                        <div class="mb-6">
+                            <p class="text-sm font-medium text-gray-600 mb-3">Consultas sugeridas:</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="askSuggestion('¿Cuánto vendimos en agosto 2025?')" 
+                                        class="px-3 py-1 text-xs bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
+                                    Ventas agosto
+                                </button>
+                                <button onclick="askSuggestion('¿Cuál es el producto más popular de septiembre?')" 
+                                        class="px-3 py-1 text-xs bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
+                                    Producto top
+                                </button>
+                                <button onclick="askSuggestion('¿Quién es el cliente que más ha comprado?')" 
+                                        class="px-3 py-1 text-xs bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
+                                    Cliente VIP
+                                </button>
+                                <button onclick="askSuggestion('¿Cómo van las ventas comparado con agosto?')" 
+                                        class="px-3 py-1 text-xs bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
+                                    Comparativa
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Chat Messages -->
+                        <div id="chat-messages" class="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-6 max-h-80 overflow-y-auto mb-6 border border-gray-200">
+                            <div class="text-center py-8">
+                                <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
+                                    <i class="fas fa-sparkles text-2xl text-white"></i>
+                                </div>
+                                <p class="text-gray-600 font-medium">¡Hola! Soy tu asistente de datos</p>
+                                <p class="text-sm text-gray-500 mt-2">Pregúntame sobre ventas de Agosto - Septiembre 2025</p>
+                            </div>
+                        </div>
+
+                        <!-- Modern Chat Input -->
+                        <div class="relative">
+                            <div class="flex items-center space-x-3 p-3 bg-white rounded-xl border-2 border-gray-200 focus-within:border-indigo-500 transition-colors">
+                                <div class="flex-1">
+                                    <input 
+                                        id="chat-input" 
+                                        type="text" 
+                                        placeholder="Escribe tu consulta aquí... ej: ¿Cuánto vendimos en agosto 2025?"
+                                        class="w-full px-2 py-2 text-gray-700 placeholder-gray-400 border-0 focus:outline-none bg-transparent"
+                                        onkeypress="handleChatKeyPress(event)"
+                                    >
+                                </div>
+                                <button 
+                                    id="chat-send" 
+                                    onclick="sendChatMessage()" 
+                                    class="p-3 bg-gradient-to-r from-indigo-600 to-purple-700 text-white rounded-lg hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:transform-none"
+                                    disabled
+                                >
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                            <div class="absolute -bottom-6 left-3 text-xs text-gray-400">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Solo datos de Agosto - Septiembre 2025 disponibles
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
