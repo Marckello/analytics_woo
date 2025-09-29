@@ -97,7 +97,7 @@ app.get('/api/dashboard', async (c) => {
     // Calcular fecha de hace 30 días
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    const dateFilter = thirtyDaysAgo.toISOString().split('T')[0]
+    const dateFilter = thirtyDaysAgo.toISOString()
     
     // Obtener órdenes de los últimos 30 días
     const orders = await fetchWooCommerceData(
