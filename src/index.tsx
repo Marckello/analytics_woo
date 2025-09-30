@@ -20,6 +20,11 @@ app.use('/api/*', cors())
 // Servir archivos estáticos
 app.use('/static/*', serveStatic({ root: './public' }))
 
+// Manejar favicon.ico
+app.get('/favicon.ico', (c) => {
+  return c.text('', 404)
+})
+
 // Función para autenticar con WooCommerce
 const getWooCommerceAuth = (env: Bindings) => {
   const credentials = btoa(`${env.WOOCOMMERCE_CONSUMER_KEY}:${env.WOOCOMMERCE_CONSUMER_SECRET}`)
@@ -135,7 +140,7 @@ const queryOpenAI = async (prompt: string, context: string, env: Bindings) => {
       messages: [
         {
           role: 'system',
-          content: `Eres un analista de datos especializado en WooCommerce para Adaptoheal México, empresa de suplementos alimenticios.
+          content: `Eres un analista senior de marketing digital especializado en WooCommerce para Adaptoheal México, empresa líder en suplementos alimenticios.
 
 🇲🇽 INFORMACIÓN TEMPORAL (ZONA HORARIA MÉXICO):
 - Fecha y hora actual: ${currentDate}, ${currentTime}
@@ -153,14 +158,37 @@ ${context}${dateContext}
 - Si preguntan por fechas fuera de agosto-septiembre 2025, explica limitaciones
 - Si no hay datos de la fecha específica, sugiere la fecha más cercana con datos
 
-💰 FORMATO DE RESPUESTAS:
-- Dinero: $1,234.56 MXN
-- Fechas: DD/MM/YYYY (formato mexicano)
-- Sé específico y directo
-- Proporciona insights de marketing cuando sea relevante
-- Si no hay datos exactos de la fecha pedida, sé transparente
+📋 FORMATO DE RESPUESTA OBLIGATORIO (MUY IMPORTANTE):
+SIEMPRE estructura tus respuestas de esta manera:
 
-Responde como experto en e-commerce de suplementos con conocimiento del mercado mexicano.`
+📈 **RESUMEN EJECUTIVO**
+• [Dato principal con emoji]
+• [Insight clave con emoji]
+
+📊 **DESGLOSE DETALLADO**
+• **Fecha específica**: [Datos con formato]
+• **Comparativa**: [Análisis vs otros períodos]
+• **Métricas clave**: [KPIs importantes]
+
+🎯 **INSIGHTS DE MARKETING**
+• **Oportunidad**: [Recomendación estratégica]
+• **Tendencia**: [Patrón identificado]
+• **Acción sugerida**: [Next steps]
+
+⚡ **DATOS RÁPIDOS**
+• Dinero: $1,234.56 MXN
+• Órdenes: 15 pedidos 📦
+• Ticket promedio: $850.25 MXN 💳
+
+SIEMPRE usa:
+- Emojis relevantes (📈📊💰🎯⚡🏆🔥📦💳)
+- Viñetas con •
+- **Texto en negritas** para datos importantes
+- Saltos de línea para legibilidad
+- Enfoque de marketing digital mexicano
+- Insights accionables para el negocio
+
+NO escribas párrafos largos. TODO debe ser estructurado y visual.`
         },
         {
           role: 'user', 
@@ -180,21 +208,163 @@ Responde como experto en e-commerce de suplementos con conocimiento del mercado 
   return data.choices[0].message.content
 }
 
+
+
 // API: Dashboard principal con métricas
 app.get('/api/dashboard', async (c) => {
   const { env } = c
   
   try {
-    // Filtrar solo Agosto y Septiembre 2025
-    const augustStart = new Date('2025-08-01T00:00:00Z').toISOString()
-    const septemberEnd = new Date('2025-09-30T23:59:59Z').toISOString()
+    // NUEVO: Obtener período de los parámetros de query o fechas personalizadas
+    const periodParam = c.req.query('period') || 'august-september-2025'
+    const customStartDate = c.req.query('start_date')
+    const customEndDate = c.req.query('end_date')
     
-    // Obtener órdenes de Agosto-Septiembre 2025 solamente
-    const orders = await fetchWooCommerceData(
+    let startDate: string, endDate: string, periodLabel: string
+    
+    // Si hay fechas personalizadas, usarlas
+    if (customStartDate && customEndDate) {
+      startDate = new Date(customStartDate + 'T00:00:00Z').toISOString()
+      endDate = new Date(customEndDate + 'T23:59:59Z').toISOString()
+      
+      // Formato más amigable: 01/Sep/25 - 29/Sep/25
+      const formatDate = (dateStr: string) => {
+        const date = new Date(dateStr)
+        const day = date.getDate().toString().padStart(2, '0')
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
+                           'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+        const month = monthNames[date.getMonth()]
+        const year = date.getFullYear().toString().slice(-2)
+        return `${day}/${month}/${year}`
+      }
+      
+      periodLabel = `${formatDate(customStartDate)} - ${formatDate(customEndDate)}`
+    } else {
+      // Mapear períodos predefinidos a fechas
+      switch(periodParam) {
+      case 'september-2025':
+        startDate = new Date('2025-09-01T00:00:00Z').toISOString()
+        endDate = new Date('2025-09-30T23:59:59Z').toISOString()
+        periodLabel = 'Septiembre 2025'
+        break
+      case 'august-september-2025':
+        startDate = new Date('2025-08-01T00:00:00Z').toISOString()
+        endDate = new Date('2025-09-30T23:59:59Z').toISOString()
+        periodLabel = 'Agosto - Septiembre 2025'
+        break
+      case 'last-30-days':
+        endDate = new Date().toISOString()
+        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        periodLabel = 'Últimos 30 días'
+        break
+      case 'last-7-days':
+        endDate = new Date().toISOString()
+        startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        periodLabel = 'Últimos 7 días'
+        break
+      case 'this-month':
+        const now = new Date()
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+        periodLabel = 'Este mes'
+        break
+      case 'last-month':
+        const lastMonth = new Date()
+        lastMonth.setMonth(lastMonth.getMonth() - 1)
+        startDate = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1).toISOString()
+        endDate = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0, 23, 59, 59).toISOString()
+        periodLabel = 'Mes anterior'
+        break
+      case 'today':
+        // Usar timezone México (America/Mexico_City) 
+        const todayMx = new Date()
+        // Convertir a timezone México
+        const todayMxStr = todayMx.toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' })
+        startDate = new Date(todayMxStr + 'T06:00:00.000Z').toISOString() // 00:00 México = 06:00 UTC
+        endDate = new Date(todayMxStr + 'T05:59:59.999Z')
+        endDate.setUTCDate(endDate.getUTCDate() + 1) // Al día siguiente
+        endDate = endDate.toISOString()
+        periodLabel = `Hoy (${todayMxStr})`
+        break
+      case 'yesterday':
+        // Usar timezone México (America/Mexico_City)
+        const yesterdayMx = new Date()
+        yesterdayMx.setDate(yesterdayMx.getDate() - 1)
+        const yesterdayMxStr = yesterdayMx.toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' })
+        startDate = new Date(yesterdayMxStr + 'T06:00:00.000Z').toISOString() // 00:00 México = 06:00 UTC
+        endDate = new Date(yesterdayMxStr + 'T05:59:59.999Z')
+        endDate.setUTCDate(endDate.getUTCDate() + 1) // Al día siguiente
+        endDate = endDate.toISOString()
+        periodLabel = `Ayer (${yesterdayMxStr})`
+        break
+      case 'august-2025':
+      default:
+        startDate = new Date('2025-08-01T00:00:00Z').toISOString()
+        endDate = new Date('2025-08-31T23:59:59Z').toISOString()
+        periodLabel = 'Agosto 2025'
+        break
+      }
+    }
+    
+    // OBTENER TODAS LAS ÓRDENES y filtrar solo estados exitosos
+    const allOrders = await fetchWooCommerceData(
       'orders', 
       env,
-      `after=${augustStart}&before=${septemberEnd}&per_page=100&status=completed`
+      `after=${startDate}&before=${endDate}&per_page=100`
     )
+    
+    // FILTRAR por estados seleccionados por el usuario
+    const statusFilters = c.req.query('status_filters') 
+    const allowedStatuses = statusFilters ? statusFilters.split(',') : ['completed', 'delivered', 'processing']
+    
+    const orders = allOrders.filter((order: any) => {
+      return allowedStatuses.includes(order.status)
+    })
+    
+    // Calcular total con órdenes válidas
+    const totalSales = orders.reduce((sum: number, order: any) => sum + parseFloat(order.total), 0)
+    const avgTicket = orders.length > 0 ? totalSales / orders.length : 0
+    
+    // DATOS REALES: Calcular métodos de pago desde órdenes reales
+    const paymentStats: any = {}
+    
+    orders.forEach((order: any) => {
+      const paymentMethod = order.payment_method || 'unknown'
+      const paymentTitle = order.payment_method_title || 'Desconocido'
+      const orderTotal = parseFloat(order.total)
+      
+      if (!paymentStats[paymentMethod]) {
+        paymentStats[paymentMethod] = {
+          title: paymentTitle,
+          sales: 0,
+          orders: 0
+        }
+      }
+      
+      paymentStats[paymentMethod].sales += orderTotal
+      paymentStats[paymentMethod].orders += 1
+    })
+    
+    // Mapear métodos de pago conocidos con fallback para datos reales
+    const getPaymentData = (method: string) => {
+      return paymentStats[method] || { title: 'Sin datos', sales: 0, orders: 0 }
+    }
+    
+    const stripeData = getPaymentData('stripe') 
+    const paypalData = getPaymentData('paypal')
+    const transferData = getPaymentData('bacs') // WooCommerce usa 'bacs' para transferencias
+    const codData = getPaymentData('cod') // Pago contra entrega
+    
+    // Si no hay datos específicos, buscar otros métodos comunes
+    const otherMethods = Object.keys(paymentStats).filter(method => 
+      !['stripe', 'paypal', 'bacs', 'cod'].includes(method)
+    )
+    
+    // Sumar otros métodos a transferencia como fallback
+    otherMethods.forEach(method => {
+      transferData.sales += paymentStats[method].sales
+      transferData.orders += paymentStats[method].orders
+    })
     
     // Obtener productos más vendidos
     const products = await fetchWooCommerceData(
@@ -203,11 +373,7 @@ app.get('/api/dashboard', async (c) => {
       'orderby=popularity&per_page=5'
     )
     
-    // Calcular métricas
-    const totalSales = orders.reduce((sum: number, order: any) => sum + parseFloat(order.total), 0)
-    const avgTicket = orders.length > 0 ? totalSales / orders.length : 0
-    
-    // Top 5 órdenes más grandes
+    // Top 5 órdenes más grandes (solo con pagos reales)
     const topOrders = orders
       .sort((a: any, b: any) => parseFloat(b.total) - parseFloat(a.total))
       .slice(0, 5)
@@ -215,22 +381,224 @@ app.get('/api/dashboard', async (c) => {
         id: order.id,
         total: parseFloat(order.total),
         customer: `${order.billing.first_name} ${order.billing.last_name}`,
-        date: order.date_created
+        date: order.date_created,
+        status: order.status
       }))
     
+    // Análisis simplificado
+    const statusBreakdown: any = {}
+    orders.forEach((order: any) => {
+      const status = order.status
+      if (!statusBreakdown[status]) {
+        statusBreakdown[status] = { count: 0, total: 0 }
+      }
+      statusBreakdown[status].count++
+      statusBreakdown[status].total += parseFloat(order.total)
+    })
+
+    // NUEVA FUNCIONALIDAD: Clasificación automática Cliente vs Distribuidor
+    const customerAnalysis: any = {}
+    
+    // Agrupar órdenes por EMAIL (más preciso que customer_id)
+    orders.forEach((order: any) => {
+      const email = order.billing.email || 'no-email'
+      if (!customerAnalysis[email]) {
+        customerAnalysis[email] = {
+          orders: [],
+          totalSpent: 0,
+          orderCount: 0,
+          avgTicket: 0,
+          customer: `${order.billing.first_name} ${order.billing.last_name}`,
+          email: order.billing.email
+        }
+      }
+      
+      customerAnalysis[email].orders.push(order)
+      customerAnalysis[email].totalSpent += parseFloat(order.total)
+      customerAnalysis[email].orderCount++
+    })
+    
+    // Calcular métricas por cliente y clasificar
+    Object.keys(customerAnalysis).forEach(customerId => {
+      const customer = customerAnalysis[customerId]
+      customer.avgTicket = customer.totalSpent / customer.orderCount
+    })
+    
+    // CLASIFICACIÓN EXACTA: Lista de emails de los 26 distribuidores REALES del CSV (lowercase)
+    const distributorEmails = new Set([
+      'elizabeth.h.c@hotmail.com',
+      'annabgdiaz@gmail.com', 
+      'sofiborto94@outlook.com',
+      'gsha3390@gmail.com',
+      'diazinfantea@aol.com',
+      'hola@adaptohealmx.com',
+      'rafazavala2003@hotmail.com',
+      'glomunoz@hotmail.com',
+      'compras@recibexpress.com',
+      'hola@allus.shop',
+      'compras@sanvite.com',
+      'mauro.costanzopa@outlook.com',
+      'reginacr.healthcoach@gmail.com',
+      'mioh70@hotmail.com',
+      'almacen@ocmarket.mx',
+      'magdaaldacog@gmail.com',
+      'vero@innata.mx',
+      'compras3@sinerco.com.mx',
+      'diandraig@gmail.com',
+      'silvia.glz.gomez@hotmail.com',
+      'alfredo@zarcos.mx',
+      'compras.petirrojoazul@gmail.com',
+      'servicio@boyu.mx',
+      'luisperdigon@icloud.com',
+      'analuciaalfarooliveros@gmail.com',
+      'sebastianzavala08@gmail.com'
+    ].map(email => email.toLowerCase()))
+    
+    const distributors: any[] = []
+    const regularCustomers: any[] = []
+    
+    // Clasificación exacta por email (case insensitive)
+    Object.values(customerAnalysis).forEach((customer: any) => {
+      const emailLower = customer.email?.toLowerCase() || ''
+      const isDistributor = distributorEmails.has(emailLower)
+      
+      if (isDistributor) {
+        distributors.push(customer)
+      } else {
+        regularCustomers.push(customer)
+      }
+    })
+    
+    // Calcular totales por tipo de cliente
+    const distributorStats = distributors.reduce((acc, d) => ({
+      sales: acc.sales + d.totalSpent,
+      orders: acc.orders + d.orderCount,
+      customers: acc.customers + 1
+    }), { sales: 0, orders: 0, customers: 0 })
+    
+    const customerStats = regularCustomers.reduce((acc, c) => ({
+      sales: acc.sales + c.totalSpent,
+      orders: acc.orders + c.orderCount,
+      customers: acc.customers + 1
+    }), { sales: 0, orders: 0, customers: 0 })
+
     return c.json({
       success: true,
       data: {
+        // MÉTRICAS PRINCIPALES TOTALES
         totalSales30Days: totalSales,
         avgTicket30Days: avgTicket,
         ordersCount30Days: orders.length,
+        
+        // DESGLOSE POR MÉTODO DE PAGO (temporal con simulación)
+        paymentMethods: {
+          stripe: {
+            sales: stripeData.sales,
+            orders: stripeData.orders,
+            avgTicket: stripeData.orders > 0 ? stripeData.sales / stripeData.orders : 0,
+            percentage: totalSales > 0 ? (stripeData.sales / totalSales * 100).toFixed(1) : '0'
+          },
+          paypal: {
+            sales: paypalData.sales,
+            orders: paypalData.orders,
+            avgTicket: paypalData.orders > 0 ? paypalData.sales / paypalData.orders : 0,
+            percentage: totalSales > 0 ? (paypalData.sales / totalSales * 100).toFixed(1) : '0'
+          },
+          transfer: {
+            sales: transferData.sales,
+            orders: transferData.orders,
+            avgTicket: transferData.orders > 0 ? transferData.sales / transferData.orders : 0,
+            percentage: totalSales > 0 ? (transferData.sales / totalSales * 100).toFixed(1) : '0'
+          }
+        },
+        
+        // NUEVO: DESGLOSE POR ESTADOS DE ÓRDENES
+        orderStates: {
+          completed: {
+            sales: statusBreakdown.completed?.total || 0,
+            orders: statusBreakdown.completed?.count || 0,
+            percentage: totalSales > 0 ? ((statusBreakdown.completed?.total || 0) / totalSales * 100).toFixed(1) : '0'
+          },
+          delivered: {
+            sales: statusBreakdown.delivered?.total || 0,
+            orders: statusBreakdown.delivered?.count || 0,
+            percentage: totalSales > 0 ? ((statusBreakdown.delivered?.total || 0) / totalSales * 100).toFixed(1) : '0'
+          },
+          processing: {
+            sales: statusBreakdown.processing?.total || 0,
+            orders: statusBreakdown.processing?.count || 0,
+            percentage: totalSales > 0 ? ((statusBreakdown.processing?.total || 0) / totalSales * 100).toFixed(1) : '0'
+          }
+        },
+        
+        // NUEVO: DESGLOSE POR TIPO DE CLIENTE (Cliente vs Distribuidor)
+        customerTypes: {
+          distributors: {
+            sales: distributorStats.sales,
+            orders: distributorStats.orders,
+            customers: distributorStats.customers,
+            avgTicket: distributorStats.orders > 0 ? distributorStats.sales / distributorStats.orders : 0,
+            percentage: totalSales > 0 ? (distributorStats.sales / totalSales * 100).toFixed(1) : '0',
+            avgPerCustomer: distributorStats.customers > 0 ? distributorStats.sales / distributorStats.customers : 0
+          },
+          customers: {
+            sales: customerStats.sales,
+            orders: customerStats.orders,
+            customers: customerStats.customers,
+            avgTicket: customerStats.orders > 0 ? customerStats.sales / customerStats.orders : 0,
+            percentage: totalSales > 0 ? (customerStats.sales / totalSales * 100).toFixed(1) : '0',
+            avgPerCustomer: customerStats.customers > 0 ? customerStats.sales / customerStats.customers : 0
+          }
+        },
+        
+        // PRODUCTOS Y ÓRDENES TOP
         topProducts: products.slice(0, 5).map((product: any) => ({
           id: product.id,
           name: product.name,
           sales: product.total_sales || 0,
           price: parseFloat(product.price)
         })),
-        topOrders
+        topOrders: topOrders
+      },
+      debug: {
+        periodo: `${periodLabel}: ${startDate} a ${endDate}`,
+        totalOrdersAnalyzed: orders.length,
+        statusBreakdown: statusBreakdown,
+        realPaymentMethodsFound: Object.keys(paymentStats).length,
+        paymentMethodBreakdown: paymentStats,
+        totalOrdersAll: allOrders.length,
+        filteredOrdersCount: orders.length,
+        customerClassification: {
+          criteria: `Clasificación exacta por email: 26 distribuidores identificados por su dirección de correo electrónico`,
+
+          distributorsFound: distributorStats.customers,
+          customersFound: customerStats.customers,
+          topDistributors: distributors.slice(0, 3).map(d => ({
+            name: d.customer,
+            totalSpent: d.totalSpent,
+            orders: d.orderCount,
+            avgTicket: d.avgTicket
+          })),
+          topCustomers: regularCustomers.slice(0, 3).map(c => ({
+            name: c.customer,
+            totalSpent: c.totalSpent,
+            orders: c.orderCount,
+            avgTicket: c.avgTicket
+          }))
+        },
+        note: `Estados incluidos: ${allowedStatuses.join(', ')} - Filtros activos aplicados`,
+        statusBreakdownAll: allOrders.reduce((acc: any, order: any) => {
+          if (!acc[order.status]) acc[order.status] = 0
+          acc[order.status]++
+          return acc
+        }, {}),
+        activeFilters: allowedStatuses,
+        periodInfo: {
+          label: periodLabel,
+          startDate: startDate,
+          endDate: endDate,
+          type: customStartDate && customEndDate ? 'custom' : periodParam
+        }
       }
     })
   } catch (error) {
@@ -239,6 +607,78 @@ app.get('/api/dashboard', async (c) => {
       success: false, 
       error: 'Error obteniendo datos del dashboard' 
     }, 500)
+  }
+})
+
+// API: Debug métodos de pago
+app.get('/api/debug-payments', async (c) => {
+  const { env } = c
+  
+  try {
+    const augustStart = new Date('2025-08-01T00:00:00Z').toISOString()
+    const augustEnd = new Date('2025-08-31T23:59:59Z').toISOString()
+    
+    // Obtener TODAS las órdenes de agosto (sin filtros)
+    const allOrders = await fetchWooCommerceData(
+      'orders', 
+      env,
+      `after=${augustStart}&before=${augustEnd}&per_page=200`
+    )
+    
+    // Analizar TODOS los métodos de pago encontrados
+    const paymentMethodsFound: any = {}
+    const statusFound: any = {}
+    
+    allOrders.forEach((order: any) => {
+      const paymentMethod = order.payment_method_title || order.payment_method || 'unknown'
+      const status = order.status
+      const total = parseFloat(order.total || 0)
+      
+      // Por método de pago
+      if (!paymentMethodsFound[paymentMethod]) {
+        paymentMethodsFound[paymentMethod] = { count: 0, total: 0, statuses: {} }
+      }
+      paymentMethodsFound[paymentMethod].count++
+      paymentMethodsFound[paymentMethod].total += total
+      
+      // Por estado dentro de cada método
+      if (!paymentMethodsFound[paymentMethod].statuses[status]) {
+        paymentMethodsFound[paymentMethod].statuses[status] = 0
+      }
+      paymentMethodsFound[paymentMethod].statuses[status]++
+      
+      // Por estado general
+      if (!statusFound[status]) {
+        statusFound[status] = { count: 0, total: 0 }
+      }
+      statusFound[status].count++
+      statusFound[status].total += total
+    })
+    
+    const totalAllOrders = allOrders.reduce((sum: number, order: any) => sum + parseFloat(order.total || 0), 0)
+    
+    return c.json({
+      success: true,
+      debug: {
+        periodo: `Agosto 2025: ${augustStart} a ${augustEnd}`,
+        totalOrdersFound: allOrders.length,
+        totalSalesAllOrders: totalAllOrders,
+        wooCommerceExpected: 107586.20,
+        discrepancia: 107586.20 - totalAllOrders,
+        paymentMethodsFound: paymentMethodsFound,
+        statusFound: statusFound,
+        sampleOrders: allOrders.slice(0, 3).map((order: any) => ({
+          id: order.id,
+          status: order.status,
+          total: parseFloat(order.total),
+          payment_method: order.payment_method,
+          payment_method_title: order.payment_method_title,
+          date: order.date_created
+        }))
+      }
+    })
+  } catch (error) {
+    return c.json({ success: false, error: error.message })
   }
 })
 
@@ -491,12 +931,165 @@ app.get('/', (c) => {
                              class="h-12 w-auto">
                         <div>
                             <h1 class="text-3xl font-bold text-white">Analytics Dashboard</h1>
-                            <p class="text-blue-100 mt-1">Datos Agosto - Septiembre 2025 | Análisis Inteligente</p>
+                            <p class="text-blue-100 mt-1">Datos en tiempo real | Análisis Inteligente</p>
                         </div>
                     </div>
+                    
+                    <!-- SELECTOR DE PERÍODO AVANZADO -->
+                    <div class="flex items-center space-x-6">
+                        <div class="flex items-center space-x-3">
+                            <label class="text-white text-sm font-medium">Período:</label>
+                            
+                            <!-- Selector de períodos predefinidos -->
+                            <select id="period-selector" onchange="changePeriod()" 
+                                    class="bg-white text-gray-800 border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-50 transition-all shadow-lg">
+                                
+                                <!-- Períodos Rápidos -->
+                                <optgroup label="⚡ Períodos Rápidos" style="color: #1f2937; font-weight: bold;">
+                                    <option value="today" style="color: #1f2937; background: white;">📅 Hoy</option>
+                                    <option value="yesterday" style="color: #1f2937; background: white;">📅 Ayer</option>
+                                    <option value="last-7-days" style="color: #1f2937; background: white;">📊 Últimos 7 días</option>
+                                    <option value="last-30-days" style="color: #1f2937; background: white;">📈 Últimos 30 días</option>
+                                </optgroup>
+                                
+                                <!-- Períodos Mensuales -->
+                                <optgroup label="📆 Períodos Mensuales" style="color: #1f2937; font-weight: bold;">
+                                    <option value="this-month" style="color: #1f2937; background: white;">📅 Este mes</option>
+                                    <option value="last-month" style="color: #1f2937; background: white;">📅 Mes anterior</option>
+                                </optgroup>
+                                
+                                <!-- Períodos Específicos de Adaptoheal -->
+                                <optgroup label="🏥 Períodos Adaptoheal" style="color: #1f2937; font-weight: bold;">
+                                    <option value="august-2025" style="color: #1f2937; background: white;">🎯 Agosto 2025</option>
+                                    <option value="september-2025" style="color: #1f2937; background: white;">🎯 Septiembre 2025</option>
+                                    <option value="august-september-2025" selected style="color: #1f2937; background: white;">📊 Agosto - Septiembre 2025</option>
+                                </optgroup>
+                                
+                                <!-- Rango Personalizado -->
+                                <optgroup label="🔧 Personalizado" style="color: #1f2937; font-weight: bold;">
+                                    <option value="custom" style="color: #1f2937; background: white;">📅 Seleccionar fechas...</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        
+                        <!-- Panel de fechas personalizado (oculto por defecto) -->
+                        <div id="custom-date-panel" class="hidden flex items-center space-x-2 bg-white/20 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/30">
+                            <label class="text-white text-xs font-medium">Desde:</label>
+                            <input type="date" id="start-date" class="bg-white text-gray-800 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <label class="text-white text-xs font-medium">Hasta:</label>
+                            <input type="date" id="end-date" class="bg-white text-gray-800 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <button onclick="applyCustomDates()" class="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600 transition-colors">
+                                <i class="fas fa-check mr-1"></i>Aplicar
+                            </button>
+                            <button onclick="cancelCustomDates()" class="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600 transition-colors">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="flex items-center space-x-2">
+                            <div class="pulse-dot w-3 h-3 bg-green-400 rounded-full"></div>
+                            <span class="text-white text-sm font-medium">En vivo</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FILTRO DE ESTADOS DE ÓRDENES -->
+        <div class="bg-white shadow-lg border-t border-gray-200">
+            <div class="container mx-auto px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-filter text-gray-600"></i>
+                            <span class="text-sm font-medium text-gray-700">Estados de Órdenes:</span>
+                        </div>
+                        
+                        <!-- Checkboxes de Estados -->
+                        <div class="flex items-center space-x-4 flex-wrap">
+                            <label class="flex items-center space-x-1 cursor-pointer">
+                                <input type="checkbox" id="status-completed" checked onchange="updateOrderStatusFilter()" 
+                                       class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+                                <span class="text-xs font-medium text-gray-700">
+                                    <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                                    Completadas (<span id="count-completed">0</span>)
+                                </span>
+                            </label>
+                            
+                            <label class="flex items-center space-x-1 cursor-pointer">
+                                <input type="checkbox" id="status-delivered" checked onchange="updateOrderStatusFilter()"
+                                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <span class="text-xs font-medium text-gray-700">
+                                    <span class="inline-block w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
+                                    Entregadas (<span id="count-delivered">0</span>)
+                                </span>
+                            </label>
+                            
+                            <label class="flex items-center space-x-1 cursor-pointer">
+                                <input type="checkbox" id="status-processing" checked onchange="updateOrderStatusFilter()"
+                                       class="rounded border-gray-300 text-orange-600 focus:ring-orange-500">
+                                <span class="text-xs font-medium text-gray-700">
+                                    <span class="inline-block w-2 h-2 bg-orange-500 rounded-full mr-1"></span>
+                                    En Proceso (<span id="count-processing">0</span>)
+                                </span>
+                            </label>
+                            
+                            <label class="flex items-center space-x-1 cursor-pointer">
+                                <input type="checkbox" id="status-on-hold" onchange="updateOrderStatusFilter()"
+                                       class="rounded border-gray-300 text-yellow-600 focus:ring-yellow-500">
+                                <span class="text-xs font-medium text-gray-700">
+                                    <span class="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-1"></span>
+                                    En Espera (<span id="count-on-hold">0</span>)
+                                </span>
+                            </label>
+                            
+                            <label class="flex items-center space-x-1 cursor-pointer">
+                                <input type="checkbox" id="status-pending" onchange="updateOrderStatusFilter()"
+                                       class="rounded border-gray-300 text-gray-600 focus:ring-gray-500">
+                                <span class="text-xs font-medium text-gray-700">
+                                    <span class="inline-block w-2 h-2 bg-gray-500 rounded-full mr-1"></span>
+                                    Pendientes (<span id="count-pending">0</span>)
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Presets de WooCommerce -->
                     <div class="flex items-center space-x-2">
-                        <div class="pulse-dot w-3 h-3 bg-green-400 rounded-full"></div>
-                        <span class="text-white text-sm font-medium">En vivo</span>
+                        <span class="text-xs text-gray-500">Presets:</span>
+                        <button onclick="applyWooCommercePreset()" 
+                                class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium hover:bg-blue-200 transition-colors">
+                            <i class="fab fa-wordpress mr-1"></i>WooCommerce
+                        </button>
+                        <button onclick="applyConservativePreset()" 
+                                class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium hover:bg-green-200 transition-colors">
+                            <i class="fas fa-shield-alt mr-1"></i>Conservador
+                        </button>
+                        <button onclick="applyAllStatusPreset()" 
+                                class="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-medium hover:bg-purple-200 transition-colors">
+                            <i class="fas fa-list mr-1"></i>Todos
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- INDICADOR DE PERÍODO ACTIVO -->
+                <div class="border-t border-gray-100 bg-gray-50 py-2">
+                    <div class="container mx-auto px-6">
+                        <div class="flex items-center justify-between text-xs">
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-calendar-alt text-gray-500"></i>
+                                <span class="text-gray-600">Período activo:</span>
+                                <span id="active-period-display" class="font-medium text-gray-800 bg-blue-100 px-2 py-1 rounded">
+                                    Cargando...
+                                </span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-gray-500">Estados activos:</span>
+                                <span id="active-statuses-display" class="font-medium text-gray-800">
+                                    Completadas, Entregadas
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -586,146 +1179,365 @@ app.get('/', (c) => {
                     </div>
                 </div>
 
-                <!-- Modern Analytics Grid -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <!-- Top Products Card -->
-                    <div class="glass-effect rounded-xl p-8 card-hover">
-                        <div class="flex items-center justify-between mb-6">
-                            <div class="flex items-center space-x-3">
-                                <div class="p-2 rounded-lg bg-gradient-to-r from-yellow-400 to-orange-500">
-                                    <i class="fas fa-crown text-lg text-white"></i>
-                                </div>
-                                <div>
-                                    <h2 class="text-xl font-bold text-gray-800">Top 5 Productos</h2>
-                                    <p class="text-sm text-gray-500">Más vendidos (Ago-Sep 2025)</p>
-                                </div>
+                <!-- NUEVA SECCIÓN: Tipos de Cliente (Cliente vs Distribuidor) -->
+                <div class="glass-effect rounded-xl p-8 card-hover">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-600">
+                                <i class="fas fa-users text-xl text-white"></i>
                             </div>
-                            <div class="text-right">
-                                <span class="text-xs font-medium text-yellow-600 bg-yellow-100 px-2 py-1 rounded-full">
-                                    <i class="fas fa-fire mr-1"></i>HOT
-                                </span>
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">Tipos de Cliente</h3>
+                                <p class="text-sm text-gray-600">Clasificación exacta por email - 26 distribuidores identificados</p>
                             </div>
                         </div>
-                        <div id="top-products" class="space-y-4">
-                            <!-- Dynamic content -->
-                        </div>
+                        <span class="text-xs font-medium text-purple-600 bg-purple-100 px-3 py-1 rounded-full">
+                            <i class="fas fa-check-circle mr-1"></i>EXACTO
+                        </span>
                     </div>
-
-                    <!-- Top Orders Card -->
-                    <div class="glass-effect rounded-xl p-8 card-hover">
-                        <div class="flex items-center justify-between mb-6">
-                            <div class="flex items-center space-x-3">
-                                <div class="p-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600">
-                                    <i class="fas fa-medal text-lg text-white"></i>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Distribuidores -->
+                        <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-600">
+                                    <i class="fas fa-crown text-xl text-white"></i>
                                 </div>
-                                <div>
-                                    <h2 class="text-xl font-bold text-gray-800">Top 5 Órdenes</h2>
-                                    <p class="text-sm text-gray-500">Mayor valor (Ago-Sep 2025)</p>
-                                </div>
+                                <span id="distributors-percentage" class="text-xs font-bold text-purple-600 bg-purple-100 px-2 py-1 rounded-full">0%</span>
                             </div>
-                            <div class="text-right">
-                                <span class="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-1 rounded-full">
-                                    <i class="fas fa-dollar-sign mr-1"></i>VIP
-                                </span>
+                            <div>
+                                <p class="text-sm font-medium text-gray-600 mb-1">Distribuidores</p>
+                                <p id="distributors-sales" class="text-xl font-bold text-gray-900">$0 MXN</p>
+                                <div class="mt-2 space-y-1">
+                                    <p id="distributors-orders" class="text-xs text-gray-500">0 órdenes</p>
+                                    <p id="distributors-customers" class="text-xs text-purple-600">0 clientes únicos</p>
+                                    <p id="distributors-avg-ticket" class="text-xs text-gray-500">Ticket prom: $0</p>
+                                    <p id="distributors-avg-customer" class="text-xs text-purple-600">Por distribuidor: $0</p>
+                                </div>
+                                <div class="mt-3 text-xs text-gray-400">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Clasificación: Email en lista exacta de 26 distribuidores registrados
+                                </div>
                             </div>
                         </div>
-                        <div id="top-orders" class="space-y-4">
-                            <!-- Dynamic content -->
+                        
+                        <!-- Clientes Regulares -->
+                        <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-100">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-600">
+                                    <i class="fas fa-user text-xl text-white"></i>
+                                </div>
+                                <span id="customers-percentage" class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">0%</span>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-600 mb-1">Clientes Regulares</p>
+                                <p id="customers-sales" class="text-xl font-bold text-gray-900">$0 MXN</p>
+                                <div class="mt-2 space-y-1">
+                                    <p id="customers-orders" class="text-xs text-gray-500">0 órdenes</p>
+                                    <p id="customers-customers" class="text-xs text-blue-600">0 clientes únicos</p>
+                                    <p id="customers-avg-ticket" class="text-xs text-gray-500">Ticket prom: $0</p>
+                                    <p id="customers-avg-customer" class="text-xs text-blue-600">Por cliente: $0</p>
+                                </div>
+                                <div class="mt-3 text-xs text-gray-400">
+                                    <i class="fas fa-shopping-cart mr-1"></i>
+                                    Compras regulares y tickets menores
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Modern AI Chat Section -->
-                <div class="glass-effect rounded-xl overflow-hidden">
-                    <!-- Chat Header -->
-                    <div class="bg-gradient-to-r from-indigo-600 to-purple-700 p-6">
-                        <div class="flex items-center justify-between">
+                <!-- SECCIÓN COMBINADA: Métodos de Pago y Estados de Órdenes -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- MÉTODOS DE PAGO -->
+                    <div class="glass-effect rounded-xl p-8 card-hover">
+                        <div class="flex items-center justify-between mb-6">
                             <div class="flex items-center space-x-3">
-                                <div class="p-2 rounded-lg bg-white/20 backdrop-blur">
-                                    <i class="fas fa-brain text-xl text-white"></i>
+                                <div class="p-3 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600">
+                                    <i class="fas fa-credit-card text-xl text-white"></i>
                                 </div>
                                 <div>
-                                    <h2 class="text-xl font-bold text-white">Consulta con IA</h2>
-                                    <p class="text-indigo-100 text-sm">Analista especializado en datos de Adaptoheal</p>
+                                    <h3 class="text-xl font-bold text-gray-800">Métodos de Pago</h3>
+                                    <p class="text-sm text-gray-600">Desglose por tipo de pago</p>
                                 </div>
                             </div>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-2 h-2 bg-green-400 rounded-full pulse-dot"></div>
-                                <span class="text-white text-xs font-medium">GPT-4o-mini</span>
+                            <span class="text-xs font-medium text-indigo-600 bg-indigo-100 px-3 py-1 rounded-full">
+                                <i class="fas fa-chart-pie mr-1"></i>ANÁLISIS
+                            </span>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 gap-4">
+                            <!-- Stripe -->
+                            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 rounded-lg bg-blue-500">
+                                            <i class="fab fa-stripe text-sm text-white"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-600">Stripe (Tarjetas)</p>
+                                            <p id="stripe-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span id="stripe-percentage" class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">0%</span>
+                                        <p id="stripe-orders" class="text-xs text-gray-500 mt-1">0 órdenes</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- PayPal -->
+                            <div class="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-4 border border-yellow-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 rounded-lg bg-yellow-500">
+                                            <i class="fab fa-paypal text-sm text-white"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-600">PayPal</p>
+                                            <p id="paypal-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span id="paypal-percentage" class="text-xs font-bold text-yellow-600 bg-yellow-100 px-2 py-1 rounded-full">0%</span>
+                                        <p id="paypal-orders" class="text-xs text-gray-500 mt-1">0 órdenes</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Transferencia -->
+                            <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 rounded-lg bg-green-500">
+                                            <i class="fas fa-university text-sm text-white"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-600">Transferencia</p>
+                                            <p id="transfer-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span id="transfer-percentage" class="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">0%</span>
+                                        <p id="transfer-orders" class="text-xs text-gray-500 mt-1">0 órdenes</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Chat Body -->
-                    <div class="p-6">
-                        <!-- Suggestion Pills -->
-                        <div class="mb-6">
-                            <p class="text-sm font-medium text-gray-600 mb-3">Consultas sugeridas:</p>
-                            <div class="flex flex-wrap gap-2">
-                                <button onclick="askSuggestion('¿Cuánto vendimos hoy?')" 
-                                        class="px-3 py-1 text-xs bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
-                                    <i class="fas fa-clock mr-1"></i>Hoy
-                                </button>
-                                <button onclick="askSuggestion('¿Cuál fue el producto más vendido ayer?')" 
-                                        class="px-3 py-1 text-xs bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
-                                    <i class="fas fa-calendar-day mr-1"></i>Ayer
-                                </button>
-                                <button onclick="askSuggestion('¿Cuántas órdenes se hicieron el martes?')" 
-                                        class="px-3 py-1 text-xs bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
-                                    <i class="fas fa-calendar-week mr-1"></i>El martes
-                                </button>
-                                <button onclick="askSuggestion('¿Quién es el cliente que más ha comprado?')" 
-                                        class="px-3 py-1 text-xs bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
-                                    <i class="fas fa-crown mr-1"></i>Cliente VIP
-                                </button>
-                                <button onclick="askSuggestion('¿Cómo van las ventas esta semana?')" 
-                                        class="px-3 py-1 text-xs bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
-                                    <i class="fas fa-chart-line mr-1"></i>Esta semana
-                                </button>
-                                <button onclick="askSuggestion('¿Cuál fue el mejor día de ventas?')" 
-                                        class="px-3 py-1 text-xs bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-full hover:shadow-lg transition-all transform hover:scale-105">
-                                    <i class="fas fa-medal mr-1"></i>Mejor día
-                                </button>
+                    <!-- ESTADOS DE ÓRDENES -->
+                    <div class="glass-effect rounded-xl p-8 card-hover">
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600">
+                                    <i class="fas fa-tasks text-xl text-white"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-xl font-bold text-gray-800">Estados de Órdenes</h3>
+                                    <p class="text-sm text-gray-600">Desglose por estado de procesamiento</p>
+                                </div>
                             </div>
+                            <span class="text-xs font-medium text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">
+                                <i class="fas fa-chart-bar mr-1"></i>ESTADOS
+                            </span>
                         </div>
                         
-                        <!-- Chat Messages -->
-                        <div id="chat-messages" class="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-6 max-h-80 overflow-y-auto mb-6 border border-gray-200">
-                            <div class="text-center py-8">
-                                <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
-                                    <i class="fas fa-sparkles text-2xl text-white"></i>
+                        <div class="grid grid-cols-1 gap-4">
+                            <!-- Completed -->
+                            <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 rounded-lg bg-green-500">
+                                            <i class="fas fa-check-circle text-sm text-white"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-600">Completadas</p>
+                                            <p id="completed-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span id="completed-percentage" class="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">0%</span>
+                                        <p id="completed-orders" class="text-xs text-gray-500 mt-1">0 órdenes</p>
+                                    </div>
                                 </div>
-                                <p class="text-gray-600 font-medium">¡Hola! Soy tu asistente de datos</p>
-                                <p class="text-sm text-gray-500 mt-2">Pregúntame sobre ventas de Agosto - Septiembre 2025</p>
+                            </div>
+                            
+                            <!-- Delivered -->
+                            <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 rounded-lg bg-blue-500">
+                                            <i class="fas fa-truck text-sm text-white"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-600">Entregadas</p>
+                                            <p id="delivered-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span id="delivered-percentage" class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">0%</span>
+                                        <p id="delivered-orders" class="text-xs text-gray-500 mt-1">0 órdenes</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Processing -->
+                            <div class="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-xl p-4 border border-orange-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 rounded-lg bg-orange-500">
+                                            <i class="fas fa-clock text-sm text-white"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-600">En Proceso</p>
+                                            <p id="processing-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span id="processing-percentage" class="text-xs font-bold text-orange-600 bg-orange-100 px-2 py-1 rounded-full">0%</span>
+                                        <p id="processing-orders" class="text-xs text-gray-500 mt-1">0 órdenes</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <!-- Modern Chat Input -->
-                        <div class="relative">
-                            <div class="flex items-center space-x-3 p-3 bg-white rounded-xl border-2 border-gray-200 focus-within:border-indigo-500 transition-colors">
-                                <div class="flex-1">
-                                    <input 
-                                        id="chat-input" 
-                                        type="text" 
-                                        placeholder="Pregúntame sobre cualquier fecha... ej: ¿Cuánto vendimos hoy? ¿Qué tal ayer? ¿El martes?"
-                                        class="w-full px-2 py-2 text-gray-700 placeholder-gray-400 border-0 focus:outline-none bg-transparent"
-                                        onkeypress="handleChatKeyPress(event)"
-                                    >
+
+                <!-- NUEVO LAYOUT: 2 Columnas (Chat + Analytics) -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                    <!-- COLUMNA IZQUIERDA: Chat IA -->
+                    <div class="flex flex-col h-full">
+                        <!-- Chat IA Card -->
+                        <div class="glass-effect rounded-xl p-8 card-hover flex flex-col h-full min-h-[800px]">
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="flex items-center space-x-3">
+                                    <div class="p-3 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600">
+                                        <i class="fas fa-robot text-xl text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-xl font-bold text-gray-800">Consulta con IA</h2>
+                                        <p class="text-sm text-gray-500">Analista especializado en datos de Adaptoheal</p>
+                                    </div>
                                 </div>
+                                <span class="text-xs font-medium text-purple-600 bg-purple-100 px-3 py-1 rounded-full">
+                                    <i class="fas fa-brain mr-1"></i>GPT-4o-mini
+                                </span>
+                            </div>
+
+                            <!-- Consultas sugeridas -->
+                            <div class="mb-6">
+                                <h4 class="text-sm font-semibold text-gray-700 mb-3">Consultas sugeridas:</h4>
+                                <div class="flex flex-wrap gap-2">
+                                    <button onclick="setChatMessage('Hoy')" class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs hover:bg-green-200 transition-colors">
+                                        <i class="fas fa-calendar-day mr-1"></i>Hoy
+                                    </button>
+                                    <button onclick="setChatMessage('Ayer')" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs hover:bg-blue-200 transition-colors">
+                                        <i class="fas fa-calendar-minus mr-1"></i>Ayer
+                                    </button>
+                                    <button onclick="setChatMessage('El martes')" class="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs hover:bg-purple-200 transition-colors">
+                                        <i class="fas fa-calendar-week mr-1"></i>El martes
+                                    </button>
+                                    <button onclick="setChatMessage('Cliente VIP')" class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs hover:bg-indigo-200 transition-colors">
+                                        <i class="fas fa-crown mr-1"></i>Cliente VIP
+                                    </button>
+                                    <button onclick="setChatMessage('Esta semana')" class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs hover:bg-yellow-200 transition-colors">
+                                        <i class="fas fa-calendar-week mr-1"></i>Esta semana
+                                    </button>
+                                    <button onclick="setChatMessage('Mejor día')" class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs hover:bg-red-200 transition-colors">
+                                        <i class="fas fa-chart-line mr-1"></i>Mejor día
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Chat Messages Area -->
+                            <div id="chat-messages" class="bg-gray-50 rounded-xl p-4 flex-1 overflow-y-auto mb-4 space-y-4 min-h-[500px]">
+                                <div class="text-center text-gray-500 text-sm">
+                                    <i class="fas fa-comments text-2xl mb-2 block"></i>
+                                    <p>¡Hola! Soy tu analista de datos especializado en Adaptoheal.</p>
+                                    <p class="mt-1">Pregúntame sobre ventas, productos, clientes o cualquier métrica.</p>
+                                    <p class="mt-2 text-xs">Ejemplo: "¿Cuáles fueron las ventas de ayer?" o "Muéstrame el mejor cliente"</p>
+                                </div>
+                            </div>
+
+                            <!-- Chat Input -->
+                            <div class="flex space-x-3">
+                                <input 
+                                    type="text" 
+                                    id="chat-input" 
+                                    placeholder="Pregúntame sobre cualquier fecha... ej: ¿Cuánto vendimos hoy? ¿Qué tal ayer? ¿El martes?" 
+                                    class="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                                    onkeypress="handleChatKeyPress(event)"
+                                    disabled
+                                >
                                 <button 
                                     id="chat-send" 
                                     onclick="sendChatMessage()" 
-                                    class="p-3 bg-gradient-to-r from-indigo-600 to-purple-700 text-white rounded-lg hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:transform-none"
+                                    class="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-purple-600 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                                     disabled
                                 >
                                     <i class="fas fa-paper-plane"></i>
                                 </button>
                             </div>
-                            <div class="absolute -bottom-6 left-3 text-xs text-gray-400">
-                                <i class="fas fa-info-circle mr-1"></i>
-                                Solo datos de Agosto - Septiembre 2025 disponibles
+                        </div>
+                    </div>
+
+                    <!-- COLUMNA DERECHA: Top Products + Top Orders -->
+                    <div class="space-y-6">
+                        <!-- Top Products Card -->
+                        <div class="glass-effect rounded-xl p-8 card-hover">
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="flex items-center space-x-3">
+                                    <div class="p-2 rounded-lg bg-gradient-to-r from-yellow-400 to-orange-500">
+                                        <i class="fas fa-crown text-lg text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-xl font-bold text-gray-800">Top 5 Productos</h2>
+                                        <p class="text-sm text-gray-500">Más vendidos (Agosto 2025)</p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xs text-yellow-600 font-medium">POPULARES</p>
+                                    <p class="text-xs text-gray-500">Por ventas totales</p>
+                                </div>
+                            </div>
+                            <div id="top-products" class="space-y-3">
+                                <!-- Productos se cargan dinámicamente -->
                             </div>
                         </div>
+
+                        <!-- Top Orders Card -->
+                        <div class="glass-effect rounded-xl p-8 card-hover">
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="flex items-center space-x-3">
+                                    <div class="p-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600">
+                                        <i class="fas fa-medal text-lg text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-xl font-bold text-gray-800">Top 5 Órdenes</h2>
+                                        <p class="text-sm text-gray-500">Mayor valor (Agosto 2025)</p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xs text-emerald-600 font-medium">VIP</p>
+                                    <p class="text-xs text-gray-500">Clientes premium</p>
+                                </div>
+                            </div>
+                            <div id="top-orders" class="space-y-3">
+                                <!-- Órdenes se cargan dinámicamente -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loading" class="hidden">
+                <div class="flex items-center justify-center py-16">
+                    <div class="text-center">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p class="text-gray-600">Cargando dashboard...</p>
                     </div>
                 </div>
             </div>
@@ -746,6 +1558,202 @@ app.get('/', (c) => {
     </body>
     </html>
   `)
+})
+
+// NUEVO API: Investigar roles de WordPress y usuarios detallados
+app.get('/api/investigate-wordpress-roles', async (c) => {
+  const { env } = c
+  
+  try {
+    // Obtener usuarios con más detalles
+    const users = await fetchWooCommerceData(
+      'customers',
+      env, 
+      'per_page=100&orderby=registered_date&order=desc'
+    )
+    
+    // Obtener órdenes recientes con customer_id
+    const orders = await fetchWooCommerceData(
+      'orders', 
+      env,
+      'per_page=100&status=completed,processing&after=2025-08-01T00:00:00Z'
+    )
+    
+    // Analizar roles y metadatos de usuarios
+    const roleAnalysis: any = {}
+    const usersByRole: any = {}
+    
+    users.forEach((user: any) => {
+      const role = user.role || 'unknown'
+      
+      if (!roleAnalysis[role]) {
+        roleAnalysis[role] = {
+          count: 0,
+          users: [],
+          samples: []
+        }
+      }
+      
+      roleAnalysis[role].count++
+      roleAnalysis[role].users.push(user.id)
+      
+      if (roleAnalysis[role].samples.length < 3) {
+        roleAnalysis[role].samples.push({
+          id: user.id,
+          email: user.email,
+          name: `${user.first_name} ${user.last_name}`,
+          role: user.role,
+          meta_data: user.meta_data,
+          avatar_url: user.avatar_url,
+          date_created: user.date_created,
+          username: user.username
+        })
+      }
+    })
+    
+    // Correlacionar órdenes con customer_id para ver la distribución real
+    const ordersByCustomer: any = {}
+    const ordersByRole: any = {}
+    
+    orders.forEach((order: any) => {
+      const customerId = order.customer_id
+      if (customerId && customerId !== 0) {
+        // Encontrar el usuario correspondiente
+        const customer = users.find((u: any) => u.id === customerId)
+        const role = customer?.role || 'guest'
+        
+        if (!ordersByRole[role]) {
+          ordersByRole[role] = {
+            orders: [],
+            totalSales: 0,
+            count: 0
+          }
+        }
+        
+        ordersByRole[role].orders.push({
+          id: order.id,
+          total: parseFloat(order.total),
+          customer_id: customerId,
+          customer_name: `${order.billing.first_name} ${order.billing.last_name}`,
+          date: order.date_created
+        })
+        ordersByRole[role].totalSales += parseFloat(order.total)
+        ordersByRole[role].count++
+      }
+    })
+    
+    return c.json({
+      success: true,
+      analysis: {
+        totalUsers: users.length,
+        totalOrders: orders.length,
+        roleBreakdown: roleAnalysis,
+        salesByRole: ordersByRole,
+        potentialRoles: Object.keys(roleAnalysis),
+        sampleUserData: users.slice(0, 2).map(u => ({
+          id: u.id,
+          role: u.role,
+          meta_data_keys: u.meta_data?.map((m: any) => m.key) || [],
+          all_fields: Object.keys(u)
+        }))
+      }
+    })
+  } catch (error) {
+    console.error('WordPress roles investigation error:', error)
+    return c.json({ 
+      success: false, 
+      error: 'Error investigando roles de WordPress',
+      details: error.message 
+    }, 500)
+  }
+})
+
+// NUEVO API: Investigar estructura de clientes para identificar tipo (Cliente vs Distribuidor)
+app.get('/api/investigate-customers', async (c) => {
+  const { env } = c
+  
+  try {
+    // Obtener una muestra más grande de clientes para encontrar diferentes roles
+    const allCustomers = await fetchWooCommerceData(
+      'customers',
+      env, 
+      'per_page=100&orderby=registered_date&order=desc'
+    )
+    
+    // Analizar todos los roles encontrados
+    const rolesFound = new Set()
+    const customersByRole: any = {}
+    
+    allCustomers.forEach((customer: any) => {
+      const role = customer.role || 'unknown'
+      rolesFound.add(role)
+      
+      if (!customersByRole[role]) {
+        customersByRole[role] = []
+      }
+      customersByRole[role].push({
+        id: customer.id,
+        email: customer.email,
+        name: `${customer.first_name} ${customer.last_name}`,
+        role: customer.role,
+        date_created: customer.date_created
+      })
+    })
+    
+    // Obtener órdenes recientes para análisis
+    const orders = await fetchWooCommerceData(
+      'orders', 
+      env,
+      'per_page=50&status=completed,processing'
+    )
+    
+    // Analizar órdenes por customer_id para correlacionar con roles
+    const ordersByCustomer: any = {}
+    for (const order of orders) {
+      const customerId = order.customer_id
+      if (customerId && customerId !== 0) {
+        if (!ordersByCustomer[customerId]) {
+          ordersByCustomer[customerId] = []
+        }
+        ordersByCustomer[customerId].push({
+          id: order.id,
+          total: parseFloat(order.total),
+          status: order.status,
+          date: order.date_created
+        })
+      }
+    }
+    
+    return c.json({
+      success: true,
+      analysis: {
+        totalCustomers: allCustomers.length,
+        rolesFound: Array.from(rolesFound),
+        customersByRole: Object.keys(customersByRole).reduce((acc: any, role) => {
+          acc[role] = {
+            count: customersByRole[role].length,
+            samples: customersByRole[role].slice(0, 3) // Primeros 3 ejemplos
+          }
+          return acc
+        }, {}),
+        orderAnalysis: {
+          totalOrders: orders.length,
+          ordersWithCustomerId: orders.filter(o => o.customer_id && o.customer_id !== 0).length,
+          sampleOrdersByCustomer: Object.keys(ordersByCustomer).slice(0, 3).reduce((acc: any, customerId) => {
+            acc[customerId] = ordersByCustomer[customerId]
+            return acc
+          }, {})
+        }
+      }
+    })
+  } catch (error) {
+    console.error('Customer investigation error:', error)
+    return c.json({ 
+      success: false, 
+      error: 'Error investigando estructura de clientes',
+      details: error.message 
+    }, 500)
+  }
 })
 
 export default app
