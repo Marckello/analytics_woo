@@ -6,6 +6,7 @@
     "build": "node build-easypanel.cjs",
     "start": "node server-node.js",
     "start:easypanel": "node server-complete.js",
+    "start:ultimate": "node server-ultimate.js",
     "preview": "wrangler pages dev dist",
     "deploy": "npm run build && wrangler pages deploy dist",
     "clean-port": "fuser -k 3000/tcp 2>/dev/null || true",
