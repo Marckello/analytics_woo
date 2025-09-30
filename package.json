@@ -5,7 +5,7 @@
     "dev:sandbox": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
     "build": "node build-easypanel.cjs",
     "start": "node server-node.js",
-    "start:easypanel": "node server-complete.js",
+    "start:easypanel": "node server-ultimate.js",
     "start:ultimate": "node server-ultimate.js",
     "preview": "wrangler pages dev dist",
     "deploy": "npm run build && wrangler pages deploy dist",
