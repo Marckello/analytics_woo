@@ -5,7 +5,7 @@
     "dev:sandbox": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
     "build": "node build-easypanel.cjs",
     "start": "node server-node.js",
-    "start:easypanel": "node -e \"const http=require('http');const port=process.env.PORT||3000;console.log('Starting server on port',port);http.createServer((req,res)=>{console.log('Request:',req.method,req.url);res.writeHead(200,{'Content-Type':'text/html'});res.end('<h1>✅ SERVER WORKING!</h1><p>Port: '+port+'</p><p>Time: '+new Date().toISOString()+'</p><p>Environment: '+(process.env.NODE_ENV||'development')+'</p>')}).listen(port,'0.0.0.0',()=>console.log('✅ Server running on http://0.0.0.0:'+port))\"",
+    "start:easypanel": "node server-node.js",
     "preview": "wrangler pages dev dist",
     "deploy": "npm run build && wrangler pages deploy dist",
     "clean-port": "fuser -k 3000/tcp 2>/dev/null || true",
@@ -14,7 +14,12 @@
     "git:commit": "git add . && git commit -m",
     "git:status": "git status"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@hono/node-server": "^1.19.5",
+    "dotenv": "^16.6.1",
+    "hono": "^4.9.9",
+    "node-fetch": "^3.3.2"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250924.0",
     "@hono/vite-build": "^1.2.0",
