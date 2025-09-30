@@ -6,7 +6,7 @@
     "dev:sandbox": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
     "build": "node build-easypanel.cjs",
     "start": "node server-node.js",
-    "start:easypanel": "node server-node.js",
+    "start:easypanel": "node server-simple.cjs",
     "preview": "wrangler pages dev dist",
     "deploy": "npm run build && wrangler pages deploy dist",
     "clean-port": "fuser -k 3000/tcp 2>/dev/null || true",
