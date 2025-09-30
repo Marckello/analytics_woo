@@ -1,12 +1,11 @@
 {
   "name": "adaptoheal-analytics",
-  "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:sandbox": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
     "build": "node build-easypanel.cjs",
     "start": "node server-node.js",
-    "start:easypanel": "node server-node.js",
+    "start:easypanel": "node server-hybrid.js",
     "preview": "wrangler pages dev dist",
     "deploy": "npm run build && wrangler pages deploy dist",
     "clean-port": "fuser -k 3000/tcp 2>/dev/null || true",
@@ -15,12 +14,7 @@
     "git:commit": "git add . && git commit -m",
     "git:status": "git status"
   },
-  "dependencies": {
-    "@hono/node-server": "^1.19.5",
-    "dotenv": "^16.6.1",
-    "hono": "^4.9.9",
-    "node-fetch": "^3.3.2"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250924.0",
     "@hono/vite-build": "^1.2.0",
