@@ -217,6 +217,30 @@ NO escribas párrafos largos. TODO debe ser estructurado y visual.`
 };
 
 // Función principal para manejar el dashboard
+// Función auxiliar para calcular el período anterior
+const calculatePreviousPeriod = (startDate, endDate, periodParam) => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const duration = end.getTime() - start.getTime();
+  
+  // Calcular período anterior con la misma duración
+  const prevEnd = new Date(start.getTime() - 24 * 60 * 60 * 1000); // Un día antes del inicio actual
+  const prevStart = new Date(prevEnd.getTime() - duration);
+  
+  return {
+    startDate: prevStart.toISOString(),
+    endDate: prevEnd.toISOString()
+  };
+};
+
+// Función auxiliar para calcular porcentaje de cambio
+const calculatePercentageChange = (current, previous) => {
+  if (previous === 0) {
+    return current > 0 ? 100 : 0;
+  }
+  return ((current - previous) / previous * 100);
+};
+
 const handleDashboard = async (query) => {
   try {
     // NUEVO: Obtener período de los parámetros de query o fechas personalizadas
@@ -534,6 +558,206 @@ const handleDashboard = async (query) => {
       customers: acc.customers + 1
     }), { sales: 0, orders: 0, customers: 0 });
 
+    // ================================
+    // NUEVO: ANÁLISIS COMPARATIVO CON PERÍODO ANTERIOR
+    // ================================
+    
+    let comparativeData = null;
+    
+    try {
+      // Calcular período anterior
+      const previousPeriod = calculatePreviousPeriod(startDate, endDate, periodParam);
+      
+      // Obtener órdenes del período anterior
+      const allPreviousOrders = await fetchWooCommerceData(
+        'orders', 
+        `after=${previousPeriod.startDate}&before=${previousPeriod.endDate}&per_page=100`
+      );
+      
+      const previousOrders = allPreviousOrders.filter((order) => {
+        return allowedStatuses.includes(order.status);
+      });
+      
+      // Calcular métricas del período anterior
+      const prevTotalSales = previousOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
+      const prevAvgTicket = previousOrders.length > 0 ? prevTotalSales / previousOrders.length : 0;
+      const prevOrdersCount = previousOrders.length;
+      
+      // Calcular métodos de pago del período anterior
+      const prevPaymentStats = {};
+      previousOrders.forEach((order) => {
+        const paymentMethod = order.payment_method || 'unknown';
+        const orderTotal = parseFloat(order.total);
+        
+        if (!prevPaymentStats[paymentMethod]) {
+          prevPaymentStats[paymentMethod] = { sales: 0, orders: 0 };
+        }
+        
+        prevPaymentStats[paymentMethod].sales += orderTotal;
+        prevPaymentStats[paymentMethod].orders += 1;
+      });
+      
+      const prevStripeData = prevPaymentStats['stripe'] || { sales: 0, orders: 0 };
+      const prevPaypalData = {
+        sales: (prevPaymentStats['ppcp-gateway']?.sales || 0) + (prevPaymentStats['ppcp-credit-card-gateway']?.sales || 0),
+        orders: (prevPaymentStats['ppcp-gateway']?.orders || 0) + (prevPaymentStats['ppcp-credit-card-gateway']?.orders || 0)
+      };
+      const prevTransferData = prevPaymentStats['bacs'] || { sales: 0, orders: 0 };
+      
+      // Calcular estados del período anterior
+      const prevStatusBreakdown = {};
+      previousOrders.forEach((order) => {
+        const status = order.status;
+        if (!prevStatusBreakdown[status]) {
+          prevStatusBreakdown[status] = { count: 0, total: 0 };
+        }
+        prevStatusBreakdown[status].count++;
+        prevStatusBreakdown[status].total += parseFloat(order.total);
+      });
+      
+      // Calcular tipos de cliente del período anterior
+      const prevCustomerAnalysis = {};
+      previousOrders.forEach((order) => {
+        const email = order.billing.email || 'no-email';
+        if (!prevCustomerAnalysis[email]) {
+          prevCustomerAnalysis[email] = {
+            totalSpent: 0,
+            orderCount: 0,
+            email: order.billing.email
+          };
+        }
+        prevCustomerAnalysis[email].totalSpent += parseFloat(order.total);
+        prevCustomerAnalysis[email].orderCount++;
+      });
+      
+      const prevDistributors = [];
+      const prevRegularCustomers = [];
+      
+      Object.values(prevCustomerAnalysis).forEach((customer) => {
+        const emailLower = customer.email?.toLowerCase() || '';
+        const isDistributor = distributorEmails.has(emailLower);
+        
+        if (isDistributor) {
+          prevDistributors.push(customer);
+        } else {
+          prevRegularCustomers.push(customer);
+        }
+      });
+      
+      const prevDistributorStats = prevDistributors.reduce((acc, d) => ({
+        sales: acc.sales + d.totalSpent,
+        orders: acc.orders + d.orderCount,
+        customers: acc.customers + 1
+      }), { sales: 0, orders: 0, customers: 0 });
+      
+      const prevCustomerStats = prevRegularCustomers.reduce((acc, c) => ({
+        sales: acc.sales + c.totalSpent,
+        orders: acc.orders + c.orderCount,
+        customers: acc.customers + 1
+      }), { sales: 0, orders: 0, customers: 0 });
+      
+      // Calcular cambios porcentuales
+      comparativeData = {
+        totalSales: {
+          change: calculatePercentageChange(totalSales, prevTotalSales),
+          previous: prevTotalSales
+        },
+        avgTicket: {
+          change: calculatePercentageChange(avgTicket, prevAvgTicket),
+          previous: prevAvgTicket
+        },
+        ordersCount: {
+          change: calculatePercentageChange(orders.length, prevOrdersCount),
+          previous: prevOrdersCount
+        },
+        paymentMethods: {
+          stripe: {
+            salesChange: calculatePercentageChange(stripeData.sales, prevStripeData.sales),
+            ordersChange: calculatePercentageChange(stripeData.orders, prevStripeData.orders),
+            previous: prevStripeData
+          },
+          paypal: {
+            salesChange: calculatePercentageChange(paypalData.sales, prevPaypalData.sales),
+            ordersChange: calculatePercentageChange(paypalData.orders, prevPaypalData.orders),
+            previous: prevPaypalData
+          },
+          transfer: {
+            salesChange: calculatePercentageChange(transferData.sales, prevTransferData.sales),
+            ordersChange: calculatePercentageChange(transferData.orders, prevTransferData.orders),
+            previous: prevTransferData
+          }
+        },
+        orderStates: {
+          completed: {
+            salesChange: calculatePercentageChange(
+              statusBreakdown.completed?.total || 0, 
+              prevStatusBreakdown.completed?.total || 0
+            ),
+            ordersChange: calculatePercentageChange(
+              statusBreakdown.completed?.count || 0, 
+              prevStatusBreakdown.completed?.count || 0
+            ),
+            previous: {
+              sales: prevStatusBreakdown.completed?.total || 0,
+              orders: prevStatusBreakdown.completed?.count || 0
+            }
+          },
+          delivered: {
+            salesChange: calculatePercentageChange(
+              statusBreakdown.delivered?.total || 0, 
+              prevStatusBreakdown.delivered?.total || 0
+            ),
+            ordersChange: calculatePercentageChange(
+              statusBreakdown.delivered?.count || 0, 
+              prevStatusBreakdown.delivered?.count || 0
+            ),
+            previous: {
+              sales: prevStatusBreakdown.delivered?.total || 0,
+              orders: prevStatusBreakdown.delivered?.count || 0
+            }
+          },
+          processing: {
+            salesChange: calculatePercentageChange(
+              statusBreakdown.processing?.total || 0, 
+              prevStatusBreakdown.processing?.total || 0
+            ),
+            ordersChange: calculatePercentageChange(
+              statusBreakdown.processing?.count || 0, 
+              prevStatusBreakdown.processing?.count || 0
+            ),
+            previous: {
+              sales: prevStatusBreakdown.processing?.total || 0,
+              orders: prevStatusBreakdown.processing?.count || 0
+            }
+          }
+        },
+        customerTypes: {
+          distributors: {
+            salesChange: calculatePercentageChange(distributorStats.sales, prevDistributorStats.sales),
+            ordersChange: calculatePercentageChange(distributorStats.orders, prevDistributorStats.orders),
+            customersChange: calculatePercentageChange(distributorStats.customers, prevDistributorStats.customers),
+            previous: prevDistributorStats
+          },
+          customers: {
+            salesChange: calculatePercentageChange(customerStats.sales, prevCustomerStats.sales),
+            ordersChange: calculatePercentageChange(customerStats.orders, prevCustomerStats.orders),
+            customersChange: calculatePercentageChange(customerStats.customers, prevCustomerStats.customers),
+            previous: prevCustomerStats
+          }
+        },
+        periodInfo: {
+          currentLabel: periodLabel,
+          previousStart: previousPeriod.startDate,
+          previousEnd: previousPeriod.endDate,
+          daysDifference: Math.round((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24))
+        }
+      };
+      
+    } catch (error) {
+      console.error('Error calculando datos comparativos:', error);
+      comparativeData = null;
+    }
+
     return {
       success: true,
       data: {
@@ -613,7 +837,10 @@ const handleDashboard = async (query) => {
           avgPrice: product.avgPrice,               // Precio promedio
           percentage: product.percentage             // Porcentaje de participación
         })),
-        topOrders: topOrders
+        topOrders: topOrders,
+        
+        // DATOS COMPARATIVOS CON PERÍODO ANTERIOR
+        comparative: comparativeData
       },
       debug: {
         periodo: `${periodLabel}: ${startDate} a ${endDate}`,
@@ -1096,7 +1323,10 @@ const getHTML = () => {
                         </div>
                         <div>
                             <p class="text-sm font-medium text-gray-600 mb-1">Ventas Totales</p>
-                            <p id="total-sales" class="text-2xl font-bold text-gray-900">$0</p>
+                            <div class="flex items-center space-x-2">
+                                <p id="total-sales" class="text-2xl font-bold text-gray-900">$0</p>
+                                <div id="total-sales-change" class=""></div>
+                            </div>
                             <p class="text-xs text-gray-500 mt-1">Últimos 30 días</p>
                         </div>
                     </div>
@@ -1111,7 +1341,10 @@ const getHTML = () => {
                         </div>
                         <div>
                             <p class="text-sm font-medium text-gray-600 mb-1">Ticket Promedio</p>
-                            <p id="avg-ticket" class="text-2xl font-bold text-gray-900">$0</p>
+                            <div class="flex items-center space-x-2">
+                                <p id="avg-ticket" class="text-2xl font-bold text-gray-900">$0</p>
+                                <div id="avg-ticket-change" class=""></div>
+                            </div>
                             <p class="text-xs text-gray-500 mt-1">Por orden completada</p>
                         </div>
                     </div>
@@ -1126,7 +1359,10 @@ const getHTML = () => {
                         </div>
                         <div>
                             <p class="text-sm font-medium text-gray-600 mb-1">Órdenes Completadas</p>
-                            <p id="orders-count" class="text-2xl font-bold text-gray-900">0</p>
+                            <div class="flex items-center space-x-2">
+                                <p id="orders-count" class="text-2xl font-bold text-gray-900">0</p>
+                                <div id="orders-count-change" class=""></div>
+                            </div>
                             <p class="text-xs text-gray-500 mt-1">Últimos 30 días</p>
                         </div>
                     </div>
@@ -1179,7 +1415,10 @@ const getHTML = () => {
                                 <span id="distributors-percentage" class="text-xs font-bold text-purple-600 bg-purple-100 px-2 py-1 rounded-full">0%</span>
                             </div>
                             <div>
-                                <p class="text-sm font-medium text-gray-600 mb-1">Distribuidores</p>
+                                <div class="flex items-center justify-between">
+                                    <p class="text-sm font-medium text-gray-600 mb-1">Distribuidores</p>
+                                    <div id="distributors-sales-change" class=""></div>
+                                </div>
                                 <p id="distributors-sales" class="text-xl font-bold text-gray-900">$0 MXN</p>
                                 <div class="mt-2 space-y-1">
                                     <p id="distributors-orders" class="text-xs text-gray-500">0 órdenes</p>
@@ -1203,7 +1442,10 @@ const getHTML = () => {
                                 <span id="customers-percentage" class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">0%</span>
                             </div>
                             <div>
-                                <p class="text-sm font-medium text-gray-600 mb-1">Clientes Regulares</p>
+                                <div class="flex items-center justify-between">
+                                    <p class="text-sm font-medium text-gray-600 mb-1">Clientes Regulares</p>
+                                    <div id="customers-sales-change" class=""></div>
+                                </div>
                                 <p id="customers-sales" class="text-xl font-bold text-gray-900">$0 MXN</p>
                                 <div class="mt-2 space-y-1">
                                     <p id="customers-orders" class="text-xs text-gray-500">0 órdenes</p>
@@ -1248,7 +1490,10 @@ const getHTML = () => {
                                             <i class="fab fa-stripe text-sm text-white"></i>
                                         </div>
                                         <div>
-                                            <p class="text-sm font-medium text-gray-600">Stripe (Tarjetas)</p>
+                                            <div class="flex items-center justify-between">
+                                                <p class="text-sm font-medium text-gray-600">Stripe (Tarjetas)</p>
+                                                <div id="stripe-sales-change" class=""></div>
+                                            </div>
                                             <p id="stripe-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
                                         </div>
                                     </div>
@@ -1267,7 +1512,10 @@ const getHTML = () => {
                                             <i class="fab fa-paypal text-sm text-white"></i>
                                         </div>
                                         <div>
-                                            <p class="text-sm font-medium text-gray-600">PayPal</p>
+                                            <div class="flex items-center justify-between">
+                                                <p class="text-sm font-medium text-gray-600">PayPal</p>
+                                                <div id="paypal-sales-change" class=""></div>
+                                            </div>
                                             <p id="paypal-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
                                         </div>
                                     </div>
@@ -1286,7 +1534,10 @@ const getHTML = () => {
                                             <i class="fas fa-university text-sm text-white"></i>
                                         </div>
                                         <div>
-                                            <p class="text-sm font-medium text-gray-600">Transferencia</p>
+                                            <div class="flex items-center justify-between">
+                                                <p class="text-sm font-medium text-gray-600">Transferencia</p>
+                                                <div id="transfer-sales-change" class=""></div>
+                                            </div>
                                             <p id="transfer-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
                                         </div>
                                     </div>
@@ -1325,7 +1576,10 @@ const getHTML = () => {
                                             <i class="fas fa-check-circle text-sm text-white"></i>
                                         </div>
                                         <div>
-                                            <p class="text-sm font-medium text-gray-600">Completadas</p>
+                                            <div class="flex items-center space-x-2">
+                                                <p class="text-sm font-medium text-gray-600">Completadas</p>
+                                                <div id="completed-sales-change" class=""></div>
+                                            </div>
                                             <p id="completed-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
                                         </div>
                                     </div>
@@ -1344,7 +1598,10 @@ const getHTML = () => {
                                             <i class="fas fa-truck text-sm text-white"></i>
                                         </div>
                                         <div>
-                                            <p class="text-sm font-medium text-gray-600">Entregadas</p>
+                                            <div class="flex items-center space-x-2">
+                                                <p class="text-sm font-medium text-gray-600">Entregadas</p>
+                                                <div id="delivered-sales-change" class=""></div>
+                                            </div>
                                             <p id="delivered-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
                                         </div>
                                     </div>
@@ -1363,7 +1620,10 @@ const getHTML = () => {
                                             <i class="fas fa-clock text-sm text-white"></i>
                                         </div>
                                         <div>
-                                            <p class="text-sm font-medium text-gray-600">En Proceso</p>
+                                            <div class="flex items-center space-x-2">
+                                                <p class="text-sm font-medium text-gray-600">En Proceso</p>
+                                                <div id="processing-sales-change" class=""></div>
+                                            </div>
                                             <p id="processing-sales" class="text-lg font-bold text-gray-900">$0 MXN</p>
                                         </div>
                                     </div>
@@ -1694,6 +1954,27 @@ const getHTML = () => {
           }
         }
 
+        // Función auxiliar para formatear cambios porcentuales
+        function formatPercentageChange(change, showIcon = true) {
+          if (change === null || change === undefined || isNaN(change)) {
+            return showIcon ? '<span class="text-gray-400 text-xs"><i class="fas fa-minus"></i></span>' : '--';
+          }
+          
+          const isPositive = change >= 0;
+          const bgClass = isPositive ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200';
+          const iconClass = isPositive ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
+          const prefix = isPositive ? '+' : '';
+          
+          if (showIcon) {
+            return \`<span class="\${bgClass} text-xs font-semibold px-2 py-1 rounded-full border inline-flex items-center space-x-1">
+              <i class="\${iconClass} text-xs"></i>
+              <span>\${prefix}\${Math.abs(change).toFixed(1)}%</span>
+            </span>\`;
+          } else {
+            return \`<span class="\${bgClass} px-2 py-1 rounded text-xs font-medium">\${prefix}\${change.toFixed(1)}%</span>\`;
+          }
+        }
+
         // Actualizar UI del dashboard
         function updateDashboardUI() {
           if (!dashboardData) return;
@@ -1702,6 +1983,18 @@ const getHTML = () => {
           document.getElementById('total-sales').textContent = formatCurrency(dashboardData.totalSales30Days);
           document.getElementById('avg-ticket').textContent = formatCurrency(dashboardData.avgTicket30Days);
           document.getElementById('orders-count').textContent = formatNumber(dashboardData.ordersCount30Days);
+          
+          // Indicadores comparativos de KPIs principales
+          const comparative = dashboardData.comparative;
+          if (comparative) {
+            document.getElementById('total-sales-change').innerHTML = formatPercentageChange(comparative.totalSales.change);
+            document.getElementById('avg-ticket-change').innerHTML = formatPercentageChange(comparative.avgTicket.change);
+            document.getElementById('orders-count-change').innerHTML = formatPercentageChange(comparative.ordersCount.change);
+          } else {
+            document.getElementById('total-sales-change').innerHTML = '';
+            document.getElementById('avg-ticket-change').innerHTML = '';
+            document.getElementById('orders-count-change').innerHTML = '';
+          }
 
           // Métodos de pago
           const paymentMethods = dashboardData.paymentMethods;
@@ -1716,6 +2009,17 @@ const getHTML = () => {
           document.getElementById('transfer-sales').textContent = formatCurrency(paymentMethods.transfer.sales);
           document.getElementById('transfer-percentage').textContent = paymentMethods.transfer.percentage + '%';
           document.getElementById('transfer-orders').textContent = paymentMethods.transfer.orders + ' órdenes';
+          
+          // Indicadores comparativos para métodos de pago
+          if (comparative && comparative.paymentMethods) {
+            document.getElementById('stripe-sales-change').innerHTML = formatPercentageChange(comparative.paymentMethods.stripe.salesChange);
+            document.getElementById('paypal-sales-change').innerHTML = formatPercentageChange(comparative.paymentMethods.paypal.salesChange);
+            document.getElementById('transfer-sales-change').innerHTML = formatPercentageChange(comparative.paymentMethods.transfer.salesChange);
+          } else {
+            document.getElementById('stripe-sales-change').innerHTML = '';
+            document.getElementById('paypal-sales-change').innerHTML = '';
+            document.getElementById('transfer-sales-change').innerHTML = '';
+          }
 
           // Estados de órdenes
           const orderStates = dashboardData.orderStates;
@@ -1730,6 +2034,17 @@ const getHTML = () => {
           document.getElementById('processing-sales').textContent = formatCurrency(orderStates.processing.sales);
           document.getElementById('processing-percentage').textContent = orderStates.processing.percentage + '%';
           document.getElementById('processing-orders').textContent = orderStates.processing.orders + ' órdenes';
+          
+          // Indicadores comparativos para estados de órdenes
+          if (comparative && comparative.orderStates) {
+            document.getElementById('completed-sales-change').innerHTML = formatPercentageChange(comparative.orderStates.completed.salesChange);
+            document.getElementById('delivered-sales-change').innerHTML = formatPercentageChange(comparative.orderStates.delivered.salesChange);
+            document.getElementById('processing-sales-change').innerHTML = formatPercentageChange(comparative.orderStates.processing.salesChange);
+          } else {
+            document.getElementById('completed-sales-change').innerHTML = '';
+            document.getElementById('delivered-sales-change').innerHTML = '';
+            document.getElementById('processing-sales-change').innerHTML = '';
+          }
 
           // Tipos de cliente (Distribuidor vs Cliente)
           const customerTypes = dashboardData.customerTypes;
@@ -1749,6 +2064,15 @@ const getHTML = () => {
           document.getElementById('customers-customers').textContent = customerTypes.customers.customers + ' clientes únicos';
           document.getElementById('customers-avg-ticket').textContent = 'Ticket prom: ' + formatCurrency(customerTypes.customers.avgTicket);
           document.getElementById('customers-avg-customer').textContent = 'Por cliente: ' + formatCurrency(customerTypes.customers.avgPerCustomer);
+          
+          // Indicadores comparativos para tipos de cliente
+          if (comparative && comparative.customerTypes) {
+            document.getElementById('distributors-sales-change').innerHTML = formatPercentageChange(comparative.customerTypes.distributors.salesChange);
+            document.getElementById('customers-sales-change').innerHTML = formatPercentageChange(comparative.customerTypes.customers.salesChange);
+          } else {
+            document.getElementById('distributors-sales-change').innerHTML = '';
+            document.getElementById('customers-sales-change').innerHTML = '';
+          }
 
           // Top products
           const topProductsHTML = dashboardData.topProducts.map((product, index) => \`
