@@ -16,7 +16,9 @@
     "git:status": "git status"
   },
   "dependencies": {
-    "dotenv": "^17.2.3"
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.3",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250924.0",

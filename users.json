@@ -1,0 +1,26 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "email": "marco@serrano.marketing",
+      "name": "Marco Serrano",
+      "password": "$2b$12$s2g3V6CMh4sfMem7Uns9W.wMi0KFazBHYDQQHT6OJg6KYYUf74rhC",
+      "role": "admin",
+      "createdAt": "2025-10-01T09:04:30.498Z",
+      "lastLogin": null,
+      "isActive": true
+    },
+    {
+      "id": 2,
+      "email": "test@adaptoheal.com",
+      "name": "Usuario Test",
+      "password": "$2b$12$uMAZ6Ssj6vYhoO0fkuCwQO7lJQ917cd7dNU5cR/kZFGRm6hSf/h96",
+      "role": "user",
+      "createdAt": "2025-10-01T09:04:30.912Z",
+      "lastLogin": null,
+      "isActive": true
+    }
+  ],
+  "maxUsers": 5,
+  "createdAt": "2025-10-01T09:04:30.912Z"
+}

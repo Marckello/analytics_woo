@@ -4,6 +4,19 @@ require('dotenv').config();
 const http = require('http');
 const url = require('url');
 const querystring = require('querystring');
+const fs = require('fs');
+const path = require('path');
+
+// Importar sistema de autenticación
+const {
+  authenticateUser,
+  verifyToken,
+  authMiddleware,
+  addUser,
+  deleteUser,
+  listUsers,
+  initializeAuth
+} = require('./auth.js');
 
 // Configuración - usando las mismas variables de entorno
 const WOOCOMMERCE_URL = process.env.WOOCOMMERCE_URL || 'https://adaptohealmx.com';
@@ -924,9 +937,23 @@ const getHTML = () => {
                             </button>
                         </div>
                         
-                        <div class="flex items-center space-x-2">
-                            <div class="pulse-dot w-3 h-3 bg-green-400 rounded-full"></div>
-                            <span class="text-white text-sm font-medium">En vivo</span>
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center space-x-2">
+                                <div class="pulse-dot w-3 h-3 bg-green-400 rounded-full"></div>
+                                <span class="text-white text-sm font-medium">En vivo</span>
+                            </div>
+                            
+                            <!-- User Info and Logout -->
+                            <div class="flex items-center space-x-3 border-l border-white/20 pl-4">
+                                <div class="text-right">
+                                    <p id="user-name" class="text-white text-sm font-medium">Usuario</p>
+                                    <p class="text-blue-100 text-xs">Dashboard Adaptoheal</p>
+                                </div>
+                                <button onclick="logout()" 
+                                        class="bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border border-white/20">
+                                    <i class="fas fa-sign-out-alt mr-1"></i>Salir
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1980,50 +2007,174 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    if (pathname === '/') {
-      // Página principal
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(getHTML());
+    // === RUTAS DE AUTENTICACIÓN ===
+    if (pathname === '/login') {
+      // Página de login
+      try {
+        const loginHTML = fs.readFileSync(path.join(__dirname, 'public', 'login.html'), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(loginHTML);
+      } catch (error) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Login page not found');
+      }
+      return;
       
-    } else if (pathname === '/api/dashboard') {
-      // API Dashboard
-      const result = await handleDashboard(query);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(result));
-      
-    } else if (pathname === '/api/chat' && req.method === 'POST') {
-      // API Chat
+    } else if (pathname === '/api/login' && req.method === 'POST') {
+      // API Login
       let body = '';
       req.on('data', chunk => {
         body += chunk.toString();
       });
       req.on('end', async () => {
         try {
-          const { message } = JSON.parse(body);
-          const result = await handleChat(message);
+          const { email, password } = JSON.parse(body);
+          const result = await authenticateUser(email, password);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(result));
         } catch (error) {
-          console.error('Chat API error:', error);
+          console.error('Login API error:', error);
           res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: 'Error procesando chat' }));
+          res.end(JSON.stringify({ success: false, error: 'Error interno del servidor' }));
         }
       });
+      return;
+      
+    } else if (pathname === '/api/verify-token' && req.method === 'POST') {
+      // Verificar token
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', async () => {
+        try {
+          const token = req.headers.authorization?.replace('Bearer ', '');
+          if (!token) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: 'Token requerido' }));
+            return;
+          }
+          
+          const decoded = verifyToken(token);
+          if (decoded) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, user: decoded }));
+          } else {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: 'Token inválido' }));
+          }
+        } catch (error) {
+          console.error('Token verification error:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Error interno del servidor' }));
+        }
+      });
+      return;
+      
+    } else if (pathname === '/api/logout' && req.method === 'POST') {
+      // Logout (client-side token removal)
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: 'Sesión cerrada' }));
+      return;
+      
+    } else if (pathname === '/api/users' && req.method === 'GET') {
+      // Listar usuarios (solo admin)
+      authMiddleware(req, res, async () => {
+        const result = await listUsers(req.user);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      });
+      return;
+      
+    } else if (pathname === '/api/users' && req.method === 'POST') {
+      // Agregar usuario (solo admin)
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', async () => {
+        authMiddleware(req, res, async () => {
+          try {
+            const userData = JSON.parse(body);
+            const result = await addUser(userData, req.user);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(result));
+          } catch (error) {
+            console.error('Add user error:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: 'Error interno del servidor' }));
+          }
+        });
+      });
+      return;
+      
+    } else if (pathname.startsWith('/api/users/') && req.method === 'DELETE') {
+      // Eliminar usuario (solo admin)
+      const userId = parseInt(pathname.split('/')[3]);
+      authMiddleware(req, res, async () => {
+        const result = await deleteUser(userId, req.user);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      });
+      return;
+      
+    // === RUTAS PROTEGIDAS ===
+    } else if (pathname === '/') {
+      // Página principal (protegida)
+      authMiddleware(req, res, () => {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(getHTML());
+      });
+      return;
+      
+    } else if (pathname === '/api/dashboard') {
+      // API Dashboard (protegida)
+      authMiddleware(req, res, async () => {
+        const result = await handleDashboard(query);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      });
+      return;
+      
+    } else if (pathname === '/api/chat' && req.method === 'POST') {
+      // API Chat (protegida)
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', async () => {
+        authMiddleware(req, res, async () => {
+          try {
+            const { message } = JSON.parse(body);
+            const result = await handleChat(message);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(result));
+          } catch (error) {
+            console.error('Chat API error:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: 'Error procesando chat' }));
+          }
+        });
+      });
+      return;
       
     } else if (pathname === '/api/test-woo') {
-      // Test WooCommerce connection
-      try {
-        const data = await fetchWooCommerceData('system_status');
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, woocommerce_connected: true, data }));
-      } catch (error) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-          success: false, 
-          error: 'Error conectando con WooCommerce API',
-          details: error.message 
-        }));
-      }
+      // Test WooCommerce connection (protegida)
+      authMiddleware(req, res, async () => {
+        try {
+          const data = await fetchWooCommerceData('system_status');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, woocommerce_connected: true, data }));
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: 'Error conectando con WooCommerce API',
+            details: error.message 
+          }));
+        }
+      });
+      return;
       
     } else if (pathname === '/api/debug/products-raw') {
       // Debug: Ver productos sin filtros de estado para comparar con WooCommerce
@@ -2171,10 +2322,20 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Adaptoheal Analytics Dashboard iniciado en puerto ${PORT}`);
-  console.log(`📊 Dashboard disponible en: http://localhost:${PORT}`);
-  console.log(`🤖 Chat IA habilitado con OpenAI GPT-4o-mini`);
-  console.log(`🛒 Conectado a WooCommerce: ${WOOCOMMERCE_URL}`);
-});
+// Inicializar sistema de autenticación
+const initializeServer = async () => {
+  await initializeAuth();
+  
+  const PORT = process.env.PORT || 3001;
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Adaptoheal Analytics Dashboard iniciado en puerto ${PORT}`);
+    console.log(`📊 Dashboard disponible en: http://localhost:${PORT}`);
+    console.log(`🔐 Sistema de autenticación activado - Login: http://localhost:${PORT}/login`);
+    console.log(`🤖 Chat IA habilitado con OpenAI GPT-4o-mini`);
+    console.log(`🛒 Conectado a WooCommerce: ${WOOCOMMERCE_URL}`);
+    console.log(`📝 Máximo usuarios permitidos: ${process.env.MAX_USERS || 5}`);
+  });
+};
+
+// Inicializar servidor con autenticación
+initializeServer().catch(console.error);

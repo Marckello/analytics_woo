@@ -1,6 +1,76 @@
-// Adaptoheal Analytics - Frontend JavaScript (Modern Version)
+// Adaptoheal Analytics - Frontend JavaScript (Modern Version con Autenticación)
 let dashboardData = null;
 let chatEnabled = false;
+
+// === SISTEMA DE AUTENTICACIÓN ===
+
+// Verificar autenticación al cargar la página
+function checkAuthentication() {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+        redirectToLogin();
+        return false;
+    }
+    
+    // Configurar axios para usar el token automáticamente
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    return true;
+}
+
+// Redirigir al login
+function redirectToLogin() {
+    window.location.href = '/login';
+}
+
+// Logout
+function logout() {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_info');
+    delete axios.defaults.headers.common['Authorization'];
+    redirectToLogin();
+}
+
+// Fetch con autenticación
+async function fetchWithAuth(url, options = {}) {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+        redirectToLogin();
+        return null;
+    }
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers
+    };
+    
+    try {
+        const response = await fetch(url, { ...options, headers });
+        
+        if (response.status === 401) {
+            // Token expirado o inválido
+            logout();
+            return null;
+        }
+        
+        return response;
+    } catch (error) {
+        console.error('Fetch error:', error);
+        throw error;
+    }
+}
+
+// Interceptor de axios para manejo de errores de autenticación
+axios.interceptors.response.use(
+    response => response,
+    error => {
+        if (error.response && error.response.status === 401) {
+            console.log('Token expirado o inválido, redirigiendo al login...');
+            logout();
+        }
+        return Promise.reject(error);
+    }
+);
 
 // Función para sugerencias rápidas
 function askSuggestion(question) {
@@ -32,7 +102,40 @@ function safeUpdateElement(elementId, content) {
 
 // Inicializar aplicación
 document.addEventListener('DOMContentLoaded', async function() {
-    await loadDashboardWithCounters();
+    // Verificar autenticación antes de cargar dashboard
+    if (!checkAuthentication()) {
+        return; // Ya redirigió al login
+    }
+    
+    // Verificar token con el servidor
+    try {
+        const response = await fetchWithAuth('/api/verify-token', { method: 'POST' });
+        if (!response || !response.ok) {
+            logout();
+            return;
+        }
+        
+        const data = await response.json();
+        if (!data.success) {
+            logout();
+            return;
+        }
+        
+        // Token válido, continuar con la carga del dashboard
+        console.log('Usuario autenticado:', data.user);
+        
+        // Mostrar información del usuario en el header
+        const userNameEl = document.getElementById('user-name');
+        if (userNameEl && data.user.name) {
+            userNameEl.textContent = data.user.name;
+        }
+        
+        await loadDashboardWithCounters();
+        
+    } catch (error) {
+        console.error('Error verificando autenticación:', error);
+        logout();
+    }
 });
 
 // Cargar datos del dashboard
