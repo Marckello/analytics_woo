@@ -13,6 +13,21 @@
 
 ## Funcionalidades Completadas
 
+### 🔐 Sistema de Autenticación y Gestión de Usuarios
+- ✅ **Login seguro con JWT** (tokens de 24h de duración)
+- ✅ **👁️ Icono del ojo en contraseña** - Mostrar/ocultar contraseña con posicionamiento perfecto
+- ✅ **👥 Gestión completa de usuarios** (solo para administradores):
+  - Máximo 5 usuarios simultáneos
+  - Roles diferenciados (admin vs user)
+  - Agregar/eliminar usuarios con validación
+  - Contraseñas encriptadas con bcrypt (salt rounds: 12)
+- ✅ **🚪 Función de logout funcional** con limpieza completa de sesión
+- ✅ **Autenticación por roles** - Botones y funcionalidades según permisos
+- ✅ **Usuarios actuales**:
+  - 👑 **Admin**: Marco Serrano (marco@serrano.marketing)
+  - 👤 **User**: Ana García (ana@adaptohealmx.com)
+  - 👤 **User**: Carlos López (carlos@adaptohealmx.com)
+
 ### Dashboard Principal
 - ✅ **Datos exclusivos Agosto-Septiembre 2025**: Filtrado específico del período
 - ✅ **Ventas totales**: $163,439.79 MXN (72 órdenes completadas)
@@ -43,8 +58,18 @@
 
 ## URIs Funcionales
 
+### 🔐 API Endpoints de Autenticación
+- `POST /api/login` - Login seguro con JWT (email + password)
+- `POST /api/logout` - Logout con limpieza de sesión
+- `POST /api/verify-token` - Verificación de tokens JWT
+- `GET /api/users` - **Gestión de usuarios** (solo admin):
+  - Lista usuarios actuales (3/5)
+  - Información de roles y estados
+- `POST /api/users` - **Agregar usuarios** (solo admin)
+- `DELETE /api/users/:id` - **Eliminar usuarios** (solo admin, no admin)
+
 ### API Endpoints Inteligentes
-- `GET /api/dashboard` - Métricas principales del dashboard
+- `GET /api/dashboard` - Métricas principales del dashboard **con autenticación**
 - `POST /api/chat` - **IA con fechas relativas** (parámetro: `{"message": "tu consulta"}`)
   - ✅ Soporta "hoy", "ayer", "el martes", "esta semana"
   - ✅ Zona horaria México automática (GMT-6)
@@ -52,15 +77,25 @@
 - `GET /api/test-woo` - Verificación de conexión WooCommerce
 
 ### Frontend Ultra Moderno
-- `/` - Dashboard principal con interfaz **completamente renovada**
+- `/login` - **Página de login moderna** con icono del ojo en contraseña
+- `/` - Dashboard principal con interfaz **completamente renovada y protegida**
 - 🎯 **Sugerencias inteligentes**: Botones dinámicos "Hoy", "Ayer", "El martes"
 - ⚡ **Animaciones suaves** en KPIs y chat
 - 🖼️ **Logo corporativo Adaptoheal** integrado
 - 📱 **Responsive perfecto** para móvil
-- `/static/app.js` - JavaScript optimizado con manejo de fechas
+- 👥 **Modal de gestión de usuarios** (solo administradores)
+- `/static/app.js` - JavaScript optimizado con manejo de fechas y autenticación
 - `/static/styles.css` - Estilos con gradientes y efectos glass
 
 ## Arquitectura de Datos
+
+### 🔐 Sistema de Usuarios y Seguridad
+- **Archivo JSON**: `users.json` con usuarios encriptados
+- **Encriptación**: bcrypt con salt rounds 12
+- **JWT Tokens**: Expiración 24h con verificación automática
+- **Roles**: `admin` (gestión completa) vs `user` (solo dashboard)
+- **Límites**: Máximo 5 usuarios simultáneos
+- **Middleware**: Protección de rutas por autenticación y rol
 
 ### Integración WooCommerce
 - **API REST v3** conectada a adaptohealmx.com
@@ -74,24 +109,50 @@
 
 ### Cache (Preparado)
 - **Cloudflare D1** configurado para cache futuro
-- **Tablas**: products_cache, orders_cache, customers_cache, ai_queries_log
+- **Tablas**: products_cache, orders_cache, customers_cache, ai_queries_log, users_log
 
 ## Guía de Uso
 
 ### Para el Usuario Final
-1. **Accede al dashboard** en la URL principal
-2. **Revisa métricas** automáticamente cargadas (ventas, productos, órdenes)
-3. **Haz consultas con IA** en el chat:
+1. **🔐 Login seguro** en `/login`:
+   - Email: tu@adaptoheal.com
+   - Contraseña: usa el **👁️ icono del ojo** para mostrar/ocultar
+   - Sistema JWT con sesiones de 24h
+2. **📊 Accede al dashboard** protegido con métricas en tiempo real
+3. **👥 Gestión de usuarios** (solo administradores):
+   - Botón "Usuarios" visible automáticamente para admins
+   - Agregar hasta 5 usuarios total
+   - Asignar roles y gestionar accesos
+4. **🤖 Haz consultas con IA** en el chat:
    - "¿Cuántos productos de Rhodiola vendimos esta semana?"
    - "¿Quién es el cliente que más ha comprado?"
    - "¿Cuál fue la venta más alta del mes?"
-4. **Interactúa naturalmente** - la IA entiende contexto comercial
+5. **🚪 Logout seguro** - Botón "Salir" con limpieza completa de sesión
+
+### Para Administradores
+```bash
+# Credenciales actuales de administrador
+Email: marco@serrano.marketing
+Password: Adaptoheal2025!
+
+# Usuarios de prueba
+Email: ana@adaptohealmx.com / Password: Ana2024!
+Email: carlos@adaptohealmx.com / Password: Carlos2024!
+```
 
 ### Para Desarrolladores
 ```bash
-# Desarrollo local
+# Desarrollo local con autenticación
 npm run build && pm2 start ecosystem.config.cjs
-curl http://localhost:3000/api/dashboard
+
+# Test endpoints protegidos
+TOKEN=$(curl -X POST http://localhost:3000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"marco@serrano.marketing","password":"Adaptoheal2025!"}' \
+  | jq -r '.token')
+
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/dashboard
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/users
 
 # Deploy a Cloudflare Pages (requiere setup previo)
 npm run deploy:prod
@@ -155,6 +216,26 @@ npx wrangler pages secret put OPENAI_API_KEY
 
 ---
 
-**Última actualización**: 2025-09-29
-**Versión**: 1.0.0 - MVP Completo
+**Última actualización**: 2025-10-01
+**Versión**: 2.0.0 - Sistema Completo con Autenticación y Gestión de Usuarios
 **Desarrollado para**: Adaptoheal México - Marketing Digital
+
+## 🚀 Changelog v2.0.0
+
+### ✨ Nuevas Funcionalidades
+- 👁️ **Icono del ojo en login** - Mostrar/ocultar contraseña con UX perfecto
+- 👥 **Sistema completo de gestión de usuarios** - Máximo 5 usuarios con roles
+- 🔐 **Autenticación JWT robusta** - Tokens de 24h con verificación automática
+- 🚪 **Función de logout funcional** - Limpieza completa de sesión y redirección
+
+### 🔧 Mejoras Técnicas
+- Separación perfecta de íconos (candado vs ojo) en formulario de login
+- Inicialización automática de información de usuario en dashboard
+- Middleware de autenticación por roles con protección de rutas
+- Sistema robusto de gestión de usuarios con validaciones completas
+
+### 🛡️ Seguridad Implementada
+- Contraseñas encriptadas con bcrypt (salt rounds: 12)
+- Tokens JWT con verificación y expiración automática
+- Validación de permisos por rol (admin vs user)
+- Limpieza segura de sesiones y redirección automática
