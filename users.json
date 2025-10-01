@@ -7,7 +7,7 @@
       "password": "$2b$12$s2g3V6CMh4sfMem7Uns9W.wMi0KFazBHYDQQHT6OJg6KYYUf74rhC",
       "role": "admin",
       "createdAt": "2025-10-01T09:04:30.498Z",
-      "lastLogin": "2025-10-01T09:44:00.388Z",
+      "lastLogin": "2025-10-01T10:23:20.442Z",
       "isActive": true
     },
     {
@@ -18,7 +18,30 @@
       "role": "user",
       "createdAt": "2025-10-01T09:04:30.912Z",
       "lastLogin": null,
-      "isActive": true
+      "isActive": false,
+      "deletedAt": "2025-10-01T10:07:11.757Z"
+    },
+    {
+      "id": 3,
+      "email": "ana@adaptohealmx.com",
+      "name": "Ana García",
+      "password": "$2b$12$L5Sr5whYElnT4p3yyG/6nubvC.zAqL.dTNPnbxjXbnp5soQurC4G.",
+      "role": "user",
+      "createdAt": "2025-10-01T10:06:50.723Z",
+      "lastLogin": "2025-10-01T10:10:09.217Z",
+      "isActive": false,
+      "deletedAt": "2025-10-01T10:19:15.093Z"
+    },
+    {
+      "id": 4,
+      "email": "carlos@adaptohealmx.com",
+      "name": "Carlos López",
+      "password": "$2b$12$uL.Oi89rPdHISuTuaB.YXeZoe8EQ.Uz5usTAiCsQ/.AJ5USenadnO",
+      "role": "user",
+      "createdAt": "2025-10-01T10:06:57.143Z",
+      "lastLogin": null,
+      "isActive": false,
+      "deletedAt": "2025-10-01T10:19:18.063Z"
     }
   ],
   "maxUsers": 5,

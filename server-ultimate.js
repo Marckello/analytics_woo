@@ -944,12 +944,19 @@ const getHTML = () => {
                                 <span class="text-white text-sm font-medium">En vivo</span>
                             </div>
                             
-                            <!-- User Info and Logout -->
+                            <!-- User Info and Actions -->
                             <div class="flex items-center space-x-3 border-l border-white/20 pl-4">
                                 <div class="text-right">
                                     <p id="user-name" class="text-white text-sm font-medium">Usuario</p>
                                     <p class="text-blue-100 text-xs">Dashboard Adaptoheal</p>
                                 </div>
+                                
+                                <!-- Admin Users Button (only for admins) -->
+                                <button id="admin-users-btn" onclick="openUserManagement()" 
+                                        class="bg-blue-500/20 hover:bg-blue-500/30 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border border-blue-400/20 hidden">
+                                    <i class="fas fa-users mr-1"></i>Usuarios
+                                </button>
+                                
                                 <button onclick="logout()" 
                                         class="bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border border-white/20">
                                     <i class="fas fa-sign-out-alt mr-1"></i>Salir
@@ -1661,8 +1668,11 @@ const getHTML = () => {
             const activeStatuses = getActiveStatuses();
             queryParams.set('status_filters', activeStatuses.join(','));
 
-            const response = await fetch(\`/api/dashboard?\${queryParams.toString()}\`);
-            const result = await response.json();
+            console.log('Haciendo request a dashboard con params:', queryParams.toString());
+            
+            // Usar axios que ya tiene configurado el Authorization header
+            const response = await axios.get(\`/api/dashboard?\${queryParams.toString()}\`);
+            const result = response.data;
 
             if (!result.success) {
               throw new Error(result.error || 'Error desconocido');
@@ -2023,23 +2033,346 @@ const getHTML = () => {
           }
         }
 
+        // Inicializar información del usuario
+        function initializeUserInfo() {
+          const userInfo = localStorage.getItem('user_info');
+          if (userInfo) {
+            try {
+              const user = JSON.parse(userInfo);
+              
+              // Actualizar nombre del usuario en el header
+              const userNameElement = document.getElementById('user-name');
+              if (userNameElement) {
+                userNameElement.textContent = user.name || 'Usuario';
+              }
+              
+              // Mostrar botón de gestión de usuarios solo para administradores
+              const adminBtn = document.getElementById('admin-users-btn');
+              if (adminBtn && user.role === 'admin') {
+                adminBtn.classList.remove('hidden');
+                console.log('Botón de administración mostrado para:', user.name);
+              }
+              
+              console.log('Usuario inicializado:', user.name, 'Role:', user.role);
+            } catch (error) {
+              console.error('Error parsing user info:', error);
+            }
+          }
+        }
+
         // Inicializar dashboard al cargar la página
         window.addEventListener('DOMContentLoaded', async () => {
-          // Primero verificar autenticación
-          if (!checkAuthentication()) {
-            return; // Ya redirigió al login
+          console.log('Dashboard iniciando...');
+          
+          // Verificar si hay token
+          const token = localStorage.getItem('auth_token');
+          if (!token) {
+            console.log('No hay token, redirigiendo al login');
+            window.location.href = '/login';
+            return;
           }
 
-          // Verificar token con el servidor
-          const isValidToken = await verifyTokenWithServer();
-          if (!isValidToken) {
-            return; // Ya redirigió al login
+          console.log('Token encontrado:', token.substring(0, 50) + '...');
+          
+          // Configurar axios con el token
+          axios.defaults.headers.common['Authorization'] = \`Bearer \${token}\`;
+          
+          // Inicializar información del usuario
+          initializeUserInfo();
+          
+          // Intentar cargar dashboard directamente
+          try {
+            console.log('Intentando cargar dashboard...');
+            await loadDashboard();
+          } catch (error) {
+            console.error('Error cargando dashboard:', error);
+            // Si falla, limpiar token y redirigir
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_info');
+            window.location.href = '/login';
           }
-
-          // Token válido, cargar dashboard
-          loadDashboard();
         });
+        
+        // === GESTIÓN DE USUARIOS ===
+        
+        let currentUsers = [];
+        
+        // Abrir modal de gestión de usuarios
+        function openUserManagement() {
+          document.getElementById('user-management-modal').classList.remove('hidden');
+          loadUsers();
+        }
+        
+        // Cerrar modal
+        function closeUserManagement() {
+          document.getElementById('user-management-modal').classList.add('hidden');
+        }
+        
+        // Cargar lista de usuarios
+        async function loadUsers() {
+          try {
+            const response = await axios.get('/api/users');
+            currentUsers = response.data.users;
+            renderUsersList();
+          } catch (error) {
+            console.error('Error cargando usuarios:', error);
+            showUserMessage('Error cargando usuarios', 'error');
+          }
+        }
+        
+        // Renderizar lista de usuarios
+        function renderUsersList() {
+          const usersList = document.getElementById('users-list');
+          usersList.innerHTML = '';
+          
+          currentUsers.forEach(user => {
+            const userRow = document.createElement('div');
+            userRow.className = 'flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200';
+            
+            const statusBadge = user.isActive ? 
+              '<span class="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">Activo</span>' :
+              '<span class="text-xs font-medium text-red-600 bg-red-100 px-2 py-1 rounded-full">Inactivo</span>';
+              
+            const roleBadge = user.role === 'admin' ?
+              '<span class="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-1 rounded-full">Admin</span>' :
+              '<span class="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">Usuario</span>';
+            
+            userRow.innerHTML = \`
+              <div class="flex-1">
+                <div class="flex items-center space-x-3">
+                  <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-full flex items-center justify-center">
+                    <span class="text-white font-bold text-sm">\${user.name.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <p class="font-semibold text-gray-800">\${user.name}</p>
+                    <p class="text-sm text-gray-600">\${user.email}</p>
+                    <p class="text-xs text-gray-500">Creado: \${new Date(user.createdAt).toLocaleDateString('es-MX')}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center space-x-2">
+                \${roleBadge}
+                \${statusBadge}
+                \${user.role !== 'admin' ? \`<button onclick="deleteUser(\${user.id})" class="text-red-600 hover:text-red-800 p-2"><i class="fas fa-trash text-sm"></i></button>\` : ''}
+              </div>
+            \`;
+            
+            usersList.appendChild(userRow);
+          });
+          
+          // Actualizar contador
+          document.getElementById('users-count').textContent = \`\${currentUsers.length}/5 usuarios\`;
+        }
+        
+        // Agregar nuevo usuario
+        async function addUser() {
+          const name = document.getElementById('new-user-name').value.trim();
+          const email = document.getElementById('new-user-email').value.trim();
+          const password = document.getElementById('new-user-password').value;
+          
+          if (!name || !email || !password) {
+            showUserMessage('Todos los campos son obligatorios', 'error');
+            return;
+          }
+          
+          if (password.length < 6) {
+            showUserMessage('La contraseña debe tener al menos 6 caracteres', 'error');
+            return;
+          }
+          
+          try {
+            const response = await axios.post('/api/users', {
+              name: name,
+              email: email,
+              password: password,
+              role: 'user'
+            });
+            
+            if (response.data.success) {
+              showUserMessage('Usuario agregado correctamente', 'success');
+              // Limpiar formulario
+              document.getElementById('new-user-name').value = '';
+              document.getElementById('new-user-email').value = '';
+              document.getElementById('new-user-password').value = '';
+              // Recargar lista
+              loadUsers();
+            } else {
+              showUserMessage(response.data.message || 'Error agregando usuario', 'error');
+            }
+          } catch (error) {
+            console.error('Error:', error);
+            showUserMessage('Error de conexión', 'error');
+          }
+        }
+        
+        // Eliminar usuario
+        async function deleteUser(userId) {
+          if (!confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
+            return;
+          }
+          
+          try {
+            const response = await axios.delete(\`/api/users/\${userId}\`);
+            
+            if (response.data.success) {
+              showUserMessage('Usuario eliminado correctamente', 'success');
+              loadUsers();
+            } else {
+              showUserMessage(response.data.message || 'Error eliminando usuario', 'error');
+            }
+          } catch (error) {
+            console.error('Error:', error);
+            showUserMessage('Error de conexión', 'error');
+          }
+        }
+        
+        // Función de logout
+        async function logout() {
+          try {
+            console.log('Iniciando logout...');
+            
+            // Limpiar datos locales inmediatamente
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_info');
+            
+            // Opcional: llamar al endpoint de logout
+            try {
+              await axios.post('/api/logout');
+              console.log('Logout API exitoso');
+            } catch (error) {
+              console.log('Error en logout API (no crítico):', error);
+            }
+            
+            // Limpiar headers de axios
+            delete axios.defaults.headers.common['Authorization'];
+            
+            console.log('Redirigiendo al login...');
+            // Redirigir al login
+            window.location.href = '/login';
+            
+          } catch (error) {
+            console.error('Error durante logout:', error);
+            // Forzar logout aunque haya error
+            localStorage.clear();
+            window.location.replace('/login');
+          }
+        }
+        
+        // Función alternativa de logout (por si falla la principal)
+        function forceLogout() {
+          localStorage.clear();
+          sessionStorage.clear();
+          window.location.replace('/login');
+        }
+        
+        // Mostrar mensajes en el modal de usuarios
+        function showUserMessage(message, type) {
+          const messageDiv = document.getElementById('user-message');
+          messageDiv.textContent = message;
+          messageDiv.className = \`p-3 rounded-lg text-sm font-medium \${type === 'error' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-green-100 text-green-700 border border-green-200'}\`;
+          messageDiv.classList.remove('hidden');
+          
+          setTimeout(() => {
+            messageDiv.classList.add('hidden');
+          }, 5000);
+        }
         </script>
+        
+        <!-- Modal de Gestión de Usuarios -->
+        <div id="user-management-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
+          <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-blue-600 to-cyan-600 p-6 rounded-t-xl">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h2 class="text-2xl font-bold text-white">Gestión de Usuarios</h2>
+                  <p class="text-blue-100 text-sm mt-1">Administrar acceso al dashboard</p>
+                </div>
+                <button onclick="closeUserManagement()" class="text-white hover:text-gray-200 text-2xl">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            
+            <!-- Content -->
+            <div class="p-6">
+              <!-- Message -->
+              <div id="user-message" class="hidden mb-4"></div>
+              
+              <!-- Stats -->
+              <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                      <i class="fas fa-users text-white text-xl"></i>
+                    </div>
+                    <div>
+                      <p id="users-count" class="text-lg font-semibold text-gray-800">0/5 usuarios</p>
+                      <p class="text-sm text-gray-600">Límite máximo: 5 usuarios</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Add User Form -->
+              <div class="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                  <i class="fas fa-user-plus mr-2 text-green-600"></i>
+                  Agregar Nuevo Usuario
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
+                    <input type="text" id="new-user-name" placeholder="Marco Serrano" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="new-user-email" placeholder="usuario@adaptoheal.com" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                    <input type="password" id="new-user-password" placeholder="Mínimo 6 caracteres" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  </div>
+                </div>
+                
+                <button onclick="addUser()" 
+                        class="bg-gradient-to-r from-green-500 to-blue-500 text-white px-6 py-2 rounded-lg font-medium hover:from-green-600 hover:to-blue-600 transition-all">
+                  <i class="fas fa-plus mr-2"></i>Agregar Usuario
+                </button>
+              </div>
+              
+              <!-- Users List -->
+              <div>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                  <i class="fas fa-list mr-2 text-blue-600"></i>
+                  Usuarios Actuales
+                </h3>
+                
+                <div id="users-list" class="space-y-3">
+                  <!-- Los usuarios se cargan aquí dinámicamente -->
+                </div>
+              </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="bg-gray-50 px-6 py-4 rounded-b-xl">
+              <div class="flex justify-between items-center">
+                <p class="text-sm text-gray-600">
+                  <i class="fas fa-info-circle mr-1"></i>
+                  Todos los usuarios tienen acceso de solo lectura al dashboard
+                </p>
+                <button onclick="closeUserManagement()" 
+                        class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors">
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
     </body>
     </html>
   `;
