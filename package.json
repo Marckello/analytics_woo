@@ -15,7 +15,9 @@
     "git:commit": "git add . && git commit -m",
     "git:status": "git status"
   },
-  "dependencies": {},
+  "dependencies": {
+    "dotenv": "^17.2.3"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250924.0",
     "@hono/vite-build": "^1.2.0",

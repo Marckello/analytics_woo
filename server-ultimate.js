@@ -1,3 +1,6 @@
+// Cargar variables de entorno del archivo .env
+require('dotenv').config();
+
 const http = require('http');
 const url = require('url');
 const querystring = require('querystring');
@@ -1928,7 +1931,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Adaptoheal Analytics Dashboard iniciado en puerto ${PORT}`);
   console.log(`📊 Dashboard disponible en: http://localhost:${PORT}`);
