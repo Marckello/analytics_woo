@@ -233,6 +233,94 @@ const calculatePreviousPeriod = (startDate, endDate, periodParam) => {
   };
 };
 
+// Función auxiliar para calcular período de comparación personalizado
+const calculateComparisonPeriod = (comparisonPeriodParam, currentStartDate, currentEndDate) => {
+  const currentStart = new Date(currentStartDate);
+  const currentEnd = new Date(currentEndDate);
+  
+  switch (comparisonPeriodParam) {
+    case 'auto':
+      return calculatePreviousPeriod(currentStartDate, currentEndDate, 'auto');
+      
+    case 'august-2025':
+      return {
+        startDate: '2025-08-01T00:00:00.000Z',
+        endDate: '2025-08-31T23:59:59.000Z'
+      };
+      
+    case 'september-2025':
+      return {
+        startDate: '2025-09-01T00:00:00.000Z',
+        endDate: '2025-09-30T23:59:59.000Z'
+      };
+      
+    case 'july-2025':
+      return {
+        startDate: '2025-07-01T00:00:00.000Z',
+        endDate: '2025-07-31T23:59:59.000Z'
+      };
+      
+    case 'june-2025':
+      return {
+        startDate: '2025-06-01T00:00:00.000Z',
+        endDate: '2025-06-30T23:59:59.000Z'
+      };
+      
+    case 'last-30-days':
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+      return {
+        startDate: thirtyDaysAgo.toISOString(),
+        endDate: today.toISOString()
+      };
+      
+    case 'last-60-days':
+      const todayFor60 = new Date();
+      const sixtyDaysAgo = new Date(todayFor60.getTime() - (60 * 24 * 60 * 60 * 1000));
+      return {
+        startDate: sixtyDaysAgo.toISOString(),
+        endDate: todayFor60.toISOString()
+      };
+      
+    case 'previous-month':
+      const now = new Date();
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDayPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      return {
+        startDate: prevMonth.toISOString(),
+        endDate: lastDayPrevMonth.toISOString()
+      };
+      
+    case 'previous-quarter':
+      const nowQuarter = new Date();
+      const currentQuarter = Math.floor(nowQuarter.getMonth() / 3);
+      const prevQuarter = currentQuarter - 1;
+      const prevQuarterYear = prevQuarter < 0 ? nowQuarter.getFullYear() - 1 : nowQuarter.getFullYear();
+      const adjustedPrevQuarter = prevQuarter < 0 ? 3 : prevQuarter;
+      
+      const quarterStart = new Date(prevQuarterYear, adjustedPrevQuarter * 3, 1);
+      const quarterEnd = new Date(prevQuarterYear, (adjustedPrevQuarter * 3) + 3, 0);
+      return {
+        startDate: quarterStart.toISOString(),
+        endDate: quarterEnd.toISOString()
+      };
+      
+    case 'same-month-last-year':
+      const currentYear = currentStart.getFullYear();
+      const currentMonth = currentStart.getMonth();
+      const lastYearStart = new Date(currentYear - 1, currentMonth, 1);
+      const lastYearEnd = new Date(currentYear - 1, currentMonth + 1, 0);
+      return {
+        startDate: lastYearStart.toISOString(),
+        endDate: lastYearEnd.toISOString()
+      };
+      
+    default:
+      // Si no reconoce el período, usar auto
+      return calculatePreviousPeriod(currentStartDate, currentEndDate, 'auto');
+  }
+};
+
 // Función auxiliar para calcular porcentaje de cambio
 const calculatePercentageChange = (current, previous) => {
   if (previous === 0) {
@@ -245,6 +333,7 @@ const handleDashboard = async (query) => {
   try {
     // NUEVO: Obtener período de los parámetros de query o fechas personalizadas
     const periodParam = query.period || 'august-september-2025';
+    const comparisonPeriodParam = query.comparison_period || 'auto';
     const customStartDate = query.start_date;
     const customEndDate = query.end_date;
     
@@ -565,8 +654,8 @@ const handleDashboard = async (query) => {
     let comparativeData = null;
     
     try {
-      // Calcular período anterior
-      const previousPeriod = calculatePreviousPeriod(startDate, endDate, periodParam);
+      // Calcular período de comparación (automático o personalizado)
+      const previousPeriod = calculateComparisonPeriod(comparisonPeriodParam, startDate, endDate);
       
       // Obtener órdenes del período anterior
       const allPreviousOrders = await fetchWooCommerceData(
@@ -749,6 +838,7 @@ const handleDashboard = async (query) => {
           currentLabel: periodLabel,
           previousStart: previousPeriod.startDate,
           previousEnd: previousPeriod.endDate,
+          comparisonPeriod: comparisonPeriodParam,
           daysDifference: Math.round((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24))
         }
       };
@@ -1117,7 +1207,7 @@ const getHTML = () => {
                     <!-- SELECTOR DE PERÍODO AVANZADO -->
                     <div class="flex items-center space-x-6">
                         <div class="flex items-center space-x-3">
-                            <label class="text-white text-sm font-medium">Período:</label>
+                            <label class="text-white text-sm font-medium">Período Principal:</label>
                             
                             <!-- Selector de períodos predefinidos -->
                             <select id="period-selector" onchange="changePeriod()" 
@@ -1151,6 +1241,37 @@ const getHTML = () => {
                             </select>
                         </div>
                         
+                        <!-- Selector de período de comparación -->
+                        <div class="flex items-center space-x-3">
+                            <label class="text-white text-sm font-medium">Comparar vs:</label>
+                            
+                            <select id="comparison-period-selector" onchange="changeComparisonPeriod()" 
+                                    class="bg-white/90 text-gray-800 border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 hover:bg-gray-50 transition-all shadow-lg">
+                                
+                                <!-- Período Automático -->
+                                <optgroup label="🔄 Automático" style="color: #1f2937; font-weight: bold;">
+                                    <option value="auto" style="color: #1f2937; background: white;">📊 Período anterior equivalente</option>
+                                </optgroup>
+                                
+                                <!-- Períodos Específicos -->
+                                <optgroup label="📅 Períodos Específicos" style="color: #1f2937; font-weight: bold;">
+                                    <option value="august-2025" style="color: #1f2937; background: white;">📊 Agosto 2025</option>
+                                    <option value="september-2025" style="color: #1f2937; background: white;">📊 Septiembre 2025</option>
+                                    <option value="july-2025" style="color: #1f2937; background: white;">📊 Julio 2025</option>
+                                    <option value="june-2025" style="color: #1f2937; background: white;">📊 Junio 2025</option>
+                                    <option value="last-30-days" style="color: #1f2937; background: white;">📈 Últimos 30 días</option>
+                                    <option value="last-60-days" style="color: #1f2937; background: white;">📈 Últimos 60 días</option>
+                                </optgroup>
+                                
+                                <!-- Períodos Relativos -->
+                                <optgroup label="⏮️ Períodos Relativos" style="color: #1f2937; font-weight: bold;">
+                                    <option value="previous-month" style="color: #1f2937; background: white;">📆 Mes anterior</option>
+                                    <option value="previous-quarter" style="color: #1f2937; background: white;">📆 Trimestre anterior</option>
+                                    <option value="same-month-last-year" style="color: #1f2937; background: white;">📆 Mismo mes año anterior</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        
                         <!-- Panel de fechas personalizado (oculto por defecto) -->
                         <div id="custom-date-panel" class="hidden flex items-center space-x-2 bg-white/20 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/30">
                             <label class="text-white text-xs font-medium">Desde:</label>
@@ -1169,6 +1290,12 @@ const getHTML = () => {
                             <div class="flex items-center space-x-2">
                                 <div class="pulse-dot w-3 h-3 bg-green-400 rounded-full"></div>
                                 <span class="text-white text-sm font-medium">En vivo</span>
+                            </div>
+                            
+                            <!-- Información del período de comparación -->
+                            <div id="comparison-info" class="text-white text-xs bg-white/20 px-3 py-1 rounded-full border border-white/30 hidden">
+                                <i class="fas fa-chart-line mr-1"></i>
+                                <span id="comparison-label">Comparando vs período anterior</span>
                             </div>
                             
                             <!-- User Info and Actions -->
@@ -1781,6 +1908,7 @@ const getHTML = () => {
         // Variables globales
         let dashboardData = null;
         let activePeriod = 'august-september-2025';
+        let activeComparisonPeriod = 'auto';
         let customDateRange = null;
 
         // Función para formatear números como moneda MXN
@@ -1809,6 +1937,18 @@ const getHTML = () => {
             activePeriod = selectedPeriod;
             loadDashboard();
           }
+        }
+        
+        // Función para manejar cambio de período de comparación
+        function changeComparisonPeriod() {
+          const selector = document.getElementById('comparison-period-selector');
+          const selectedComparisonPeriod = selector.value;
+          
+          activeComparisonPeriod = selectedComparisonPeriod;
+          console.log('Período de comparación cambiado a:', selectedComparisonPeriod);
+          
+          // Recargar dashboard con nueva comparación
+          loadDashboard();
         }
 
         // Mostrar panel de fechas personalizadas
@@ -1927,6 +2067,11 @@ const getHTML = () => {
             // Filtros de estado
             const activeStatuses = getActiveStatuses();
             queryParams.set('status_filters', activeStatuses.join(','));
+            
+            // Período de comparación
+            if (activeComparisonPeriod && activeComparisonPeriod !== 'auto') {
+              queryParams.set('comparison_period', activeComparisonPeriod);
+            }
 
             console.log('Haciendo request a dashboard con params:', queryParams.toString());
             
@@ -1942,6 +2087,7 @@ const getHTML = () => {
             updateDashboardUI();
             updatePeriodDisplay(result.debug?.periodInfo);
             updateStatusCounters(result.debug?.statusBreakdownAll || {});
+            updateComparisonInfo(result.data?.comparative?.periodInfo);
             
             // Habilitar chat después de cargar datos
             enableChat();
@@ -1975,6 +2121,59 @@ const getHTML = () => {
           }
         }
 
+        // Función para actualizar información de comparación
+        function updateComparisonInfo(periodInfo) {
+          const comparisonInfoDiv = document.getElementById('comparison-info');
+          const comparisonLabel = document.getElementById('comparison-label');
+          
+          if (!periodInfo) {
+            comparisonInfoDiv.classList.add('hidden');
+            return;
+          }
+          
+          let labelText = '';
+          const comparisonPeriod = periodInfo.comparisonPeriod || 'auto';
+          
+          // Crear labels amigables para cada tipo de comparación
+          switch (comparisonPeriod) {
+            case 'auto':
+              labelText = 'vs período anterior equivalente';
+              break;
+            case 'august-2025':
+              labelText = 'vs Agosto 2025';
+              break;
+            case 'september-2025':
+              labelText = 'vs Septiembre 2025';
+              break;
+            case 'july-2025':
+              labelText = 'vs Julio 2025';
+              break;
+            case 'june-2025':
+              labelText = 'vs Junio 2025';
+              break;
+            case 'last-30-days':
+              labelText = 'vs Últimos 30 días';
+              break;
+            case 'last-60-days':
+              labelText = 'vs Últimos 60 días';
+              break;
+            case 'previous-month':
+              labelText = 'vs Mes anterior';
+              break;
+            case 'previous-quarter':
+              labelText = 'vs Trimestre anterior';
+              break;
+            case 'same-month-last-year':
+              labelText = 'vs Mismo mes año anterior';
+              break;
+            default:
+              labelText = 'vs período personalizado';
+          }
+          
+          comparisonLabel.textContent = labelText;
+          comparisonInfoDiv.classList.remove('hidden');
+        }
+        
         // Actualizar UI del dashboard
         function updateDashboardUI() {
           if (!dashboardData) return;
@@ -2403,6 +2602,12 @@ const getHTML = () => {
           
           // Inicializar información del usuario
           initializeUserInfo();
+          
+          // Inicializar selector de período de comparación
+          const comparisonSelector = document.getElementById('comparison-period-selector');
+          if (comparisonSelector) {
+            comparisonSelector.value = activeComparisonPeriod;
+          }
           
           // Intentar cargar dashboard directamente
           try {
