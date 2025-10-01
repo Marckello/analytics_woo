@@ -192,12 +192,13 @@ function renderDashboard() {
                 </div>
                 <div>
                     <p class="font-semibold text-gray-800 text-sm leading-tight">${product.name.split(' ').slice(0, 4).join(' ')}</p>
-                    <p class="text-xs text-gray-500 mt-1">$${product.price.toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN</p>
+                    <p class="text-xs text-gray-500 mt-1">$${product.avgPrice.toLocaleString('es-MX', {minimumFractionDigits: 2})} c/u</p>
                 </div>
             </div>
             <div class="text-right">
-                <p class="font-bold text-lg ${index < 3 ? 'text-emerald-600' : 'text-gray-700'}">${product.sales.toLocaleString('es-MX')}</p>
-                <p class="text-xs text-gray-500">ventas totales</p>
+                <p class="font-bold text-lg ${index < 3 ? 'text-emerald-600' : 'text-gray-700'}">${product.quantity.toLocaleString('es-MX')} ventas</p>
+                <p class="text-xs text-gray-500">$${product.totalSales.toLocaleString('es-MX', {minimumFractionDigits: 2})} • ${product.percentage}%</p>
+                <p class="text-xs text-gray-400">ID: ${product.id}</p>
             </div>
         `;
         topProductsEl.appendChild(productEl);

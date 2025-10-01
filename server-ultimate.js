@@ -304,7 +304,7 @@ const handleDashboard = async (query) => {
     
     // FILTRAR por estados seleccionados por el usuario
     const statusFilters = query.status_filters;
-    const allowedStatuses = statusFilters ? statusFilters.split(',') : ['completed', 'delivered', 'processing'];
+    const allowedStatuses = statusFilters ? statusFilters.split(',') : ['completed', 'delivered', 'processing', 'on-hold', 'pending', 'failed', 'refunded', 'cancelled'];
     
     const orders = allOrders.filter((order) => {
       return allowedStatuses.includes(order.status);
@@ -340,13 +340,27 @@ const handleDashboard = async (query) => {
     };
     
     const stripeData = getPaymentData('stripe'); 
-    const paypalData = getPaymentData('paypal');
+    
+    // CONSOLIDAR TODOS LOS MÉTODOS DE PAYPAL
+    const paypalData = {
+      title: 'PayPal',
+      sales: 0,
+      orders: 0
+    };
+    
+    // Sumar ambos métodos de PayPal: ppcp-gateway + ppcp-credit-card-gateway
+    const paypalGateway = getPaymentData('ppcp-gateway');
+    const paypalCreditCard = getPaymentData('ppcp-credit-card-gateway');
+    
+    paypalData.sales = paypalGateway.sales + paypalCreditCard.sales;
+    paypalData.orders = paypalGateway.orders + paypalCreditCard.orders;
+    
     const transferData = getPaymentData('bacs'); // WooCommerce usa 'bacs' para transferencias
     const codData = getPaymentData('cod'); // Pago contra entrega
     
-    // Si no hay datos específicos, buscar otros métodos comunes
+    // Si no hay datos específicos, buscar otros métodos comunes (excluyendo PayPal ya consolidado)
     const otherMethods = Object.keys(paymentStats).filter(method => 
-      !['stripe', 'paypal', 'bacs', 'cod'].includes(method)
+      !['stripe', 'ppcp-gateway', 'ppcp-credit-card-gateway', 'bacs', 'cod'].includes(method)
     );
     
     // Sumar otros métodos a transferencia como fallback
@@ -355,11 +369,47 @@ const handleDashboard = async (query) => {
       transferData.orders += paymentStats[method].orders;
     });
     
-    // Obtener productos más vendidos
-    const products = await fetchWooCommerceData(
-      'products',
-      'orderby=popularity&per_page=5'
-    );
+    // CALCULAR PRODUCTOS DESDE ÓRDENES REALES (NO USAR API DE PRODUCTOS)
+    const productStats = {};
+    
+    // Procesar line_items de todas las órdenes filtradas
+    orders.forEach(order => {
+      if (order.line_items && Array.isArray(order.line_items)) {
+        order.line_items.forEach(item => {
+          const productId = item.product_id;
+          const productName = item.name;
+          const quantity = parseInt(item.quantity);
+          const totalSales = parseFloat(item.total);
+          
+          if (!productStats[productId]) {
+            productStats[productId] = {
+              id: productId,
+              name: productName,
+              totalQuantity: 0,
+              totalSales: 0,
+              orders: new Set() // Para contar órdenes únicas
+            };
+          }
+          
+          productStats[productId].totalQuantity += quantity;
+          productStats[productId].totalSales += totalSales;
+          productStats[productId].orders.add(order.id);
+        });
+      }
+    });
+    
+    // Convertir a array y ordenar por ventas totales
+    const products = Object.values(productStats)
+      .map(product => ({
+        id: product.id,
+        name: product.name,
+        totalQuantity: product.totalQuantity,
+        totalSales: product.totalSales,
+        ordersCount: product.orders.size,
+        avgPrice: product.totalQuantity > 0 ? product.totalSales / product.totalQuantity : 0,
+        percentage: totalSales > 0 ? (product.totalSales / totalSales * 100).toFixed(1) : '0'
+      }))
+      .sort((a, b) => b.totalQuantity - a.totalQuantity);
     
     // Top 5 órdenes más grandes (solo con pagos reales)
     const topOrders = orders
@@ -539,12 +589,15 @@ const handleDashboard = async (query) => {
           }
         },
         
-        // PRODUCTOS Y ÓRDENES TOP
+        // PRODUCTOS TOP CON DATOS REALES
         topProducts: products.slice(0, 5).map((product) => ({
           id: product.id,
           name: product.name,
-          sales: product.total_sales || 0,
-          price: parseFloat(product.price)
+          quantity: product.totalQuantity,           // Cantidad vendida real
+          totalSales: product.totalSales,           // Monto total de ventas
+          ordersCount: product.ordersCount,         // Número de órdenes
+          avgPrice: product.avgPrice,               // Precio promedio
+          percentage: product.percentage             // Porcentaje de participación
         })),
         topOrders: topOrders
       },
@@ -920,7 +973,7 @@ const getHTML = () => {
                             </label>
                             
                             <label class="flex items-center space-x-1 cursor-pointer">
-                                <input type="checkbox" id="status-on-hold" onchange="updateOrderStatusFilter()"
+                                <input type="checkbox" id="status-on-hold" checked onchange="updateOrderStatusFilter()"
                                        class="rounded border-gray-300 text-yellow-600 focus:ring-yellow-500">
                                 <span class="text-xs font-medium text-gray-700">
                                     <span class="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-1"></span>
@@ -929,7 +982,7 @@ const getHTML = () => {
                             </label>
                             
                             <label class="flex items-center space-x-1 cursor-pointer">
-                                <input type="checkbox" id="status-pending" onchange="updateOrderStatusFilter()"
+                                <input type="checkbox" id="status-pending" checked onchange="updateOrderStatusFilter()"
                                        class="rounded border-gray-300 text-gray-600 focus:ring-gray-500">
                                 <span class="text-xs font-medium text-gray-700">
                                     <span class="inline-block w-2 h-2 bg-gray-500 rounded-full mr-1"></span>
@@ -1379,7 +1432,7 @@ const getHTML = () => {
                                     </div>
                                     <div>
                                         <h2 class="text-xl font-bold text-gray-800">Top 5 Productos</h2>
-                                        <p class="text-sm text-gray-500">Más vendidos (Agosto 2025)</p>
+                                        <p id="products-period-label" class="text-sm text-gray-500">Más vendidos</p>
                                     </div>
                                 </div>
                                 <div class="text-right">
@@ -1401,7 +1454,7 @@ const getHTML = () => {
                                     </div>
                                     <div>
                                         <h2 class="text-xl font-bold text-gray-800">Top 5 Órdenes</h2>
-                                        <p class="text-sm text-gray-500">Mayor valor (Agosto 2025)</p>
+                                        <p id="orders-period-label" class="text-sm text-gray-500">Mayor valor</p>
                                     </div>
                                 </div>
                                 <div class="text-right">
@@ -1668,11 +1721,12 @@ const getHTML = () => {
                 </div>
                 <div>
                   <p class="text-sm font-medium text-gray-800 truncate max-w-[200px]">\${product.name}</p>
-                  <p class="text-xs text-gray-500">\${formatCurrency(product.price)} c/u</p>
+                  <p class="text-xs text-gray-500">\${formatCurrency(product.avgPrice)} c/u</p>
                 </div>
               </div>
               <div class="text-right">
-                <p class="text-sm font-bold text-yellow-700">\${product.sales} ventas</p>
+                <p class="text-sm font-bold text-yellow-700">\${product.quantity} ventas</p>
+                <p class="text-xs text-gray-500">\${formatCurrency(product.totalSales)} • \${product.percentage}%</p>
                 <p class="text-xs text-gray-500">ID: \${product.id}</p>
               </div>
             </div>
@@ -1698,6 +1752,9 @@ const getHTML = () => {
             </div>
           \`).join('');
           document.getElementById('top-orders').innerHTML = topOrdersHTML;
+          
+          // Actualizar labels de período dinámicamente
+          updateProductsAndOrdersLabels();
 
           document.getElementById('loading').classList.add('hidden');
           document.getElementById('dashboard').classList.remove('hidden');
@@ -1709,6 +1766,55 @@ const getHTML = () => {
           
           const display = document.getElementById('active-period-display');
           display.textContent = periodInfo.label;
+        }
+
+        // Actualizar labels de período para productos y órdenes
+        function updateProductsAndOrdersLabels() {
+          // Obtener el período actual desde el selector
+          const periodSelector = document.getElementById('period-selector');
+          const selectedPeriod = periodSelector.value;
+          
+          let periodLabel = '';
+          
+          // Mapear los valores del selector a labels amigables
+          switch(selectedPeriod) {
+            case 'august-september-2025':
+              periodLabel = 'Agosto - Septiembre 2025';
+              break;
+            case 'august-2025':
+              periodLabel = 'Agosto 2025';
+              break;
+            case 'september-2025':
+              periodLabel = 'Septiembre 2025';
+              break;
+            case 'previous-month':
+              periodLabel = 'Mes Anterior';
+              break;
+            case 'current-month':
+              periodLabel = 'Mes Actual';
+              break;
+            case 'last-7-days':
+              periodLabel = 'Últimos 7 días';
+              break;
+            case 'last-30-days':
+              periodLabel = 'Últimos 30 días';
+              break;
+            case 'custom':
+              if (customDateRange) {
+                const startDate = new Date(customDateRange.start).toLocaleDateString('es-MX');
+                const endDate = new Date(customDateRange.end).toLocaleDateString('es-MX');
+                periodLabel = startDate + ' - ' + endDate;
+              } else {
+                periodLabel = 'Período Personalizado';
+              }
+              break;
+            default:
+              periodLabel = 'Período Actual';
+          }
+          
+          // Actualizar los labels
+          document.getElementById('products-period-label').textContent = 'Más vendidos (' + periodLabel + ')';
+          document.getElementById('orders-period-label').textContent = 'Mayor valor (' + periodLabel + ')';
         }
 
         // Actualizar contadores de estados
@@ -1915,6 +2021,140 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ 
           success: false, 
           error: 'Error conectando con WooCommerce API',
+          details: error.message 
+        }));
+      }
+      
+    } else if (pathname === '/api/debug/products-raw') {
+      // Debug: Ver productos sin filtros de estado para comparar con WooCommerce
+      try {
+        const startDate = new Date('2025-08-01T00:00:00Z').toISOString();
+        const endDate = new Date('2025-08-31T23:59:59Z').toISOString();
+        
+        // Obtener TODAS las órdenes de agosto sin filtros
+        const orders = await fetchWooCommerceData(
+          'orders',
+          `after=${startDate}&before=${endDate}&per_page=100&status=any`
+        );
+        
+        const productStats = {};
+        
+        // Procesar line_items de TODAS las órdenes
+        orders.forEach(order => {
+          if (order.line_items && Array.isArray(order.line_items)) {
+            order.line_items.forEach(item => {
+              const productId = item.product_id;
+              const productName = item.name;
+              const quantity = parseInt(item.quantity);
+              
+              if (!productStats[productId]) {
+                productStats[productId] = {
+                  id: productId,
+                  name: productName,
+                  totalQuantity: 0,
+                  orders: new Set(),
+                  ordersByStatus: {}
+                };
+              }
+              
+              productStats[productId].totalQuantity += quantity;
+              productStats[productId].orders.add(order.id);
+              
+              // Agrupar por estado de orden
+              const status = order.status;
+              if (!productStats[productId].ordersByStatus[status]) {
+                productStats[productId].ordersByStatus[status] = 0;
+              }
+              productStats[productId].ordersByStatus[status] += quantity;
+            });
+          }
+        });
+        
+        // Convertir a array y ordenar por cantidad total
+        const result = Object.values(productStats)
+          .map(product => ({
+            id: product.id,
+            name: product.name,
+            totalQuantity: product.totalQuantity,
+            ordersCount: product.orders.size,
+            ordersByStatus: product.ordersByStatus
+          }))
+          .sort((a, b) => b.totalQuantity - a.totalQuantity);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: true, 
+          period: 'Agosto 2025',
+          totalOrders: orders.length,
+          orderStates: orders.reduce((acc, order) => {
+            acc[order.status] = (acc[order.status] || 0) + 1;
+            return acc;
+          }, {}),
+          topProducts: result.slice(0, 10)
+        }));
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: 'Error analizando productos sin filtros',
+          details: error.message 
+        }));
+      }
+      
+    } else if (pathname === '/api/debug/payment-methods') {
+      // Debug: Ver métodos de pago reales en las órdenes
+      try {
+        const orders = await fetchWooCommerceData('orders?per_page=100');
+        
+        // Recopilar todos los métodos de pago únicos
+        const paymentMethods = new Map();
+        
+        orders.forEach(order => {
+          const method = order.payment_method;
+          const title = order.payment_method_title;
+          const total = parseFloat(order.total);
+          
+          if (paymentMethods.has(method)) {
+            const existing = paymentMethods.get(method);
+            existing.count++;
+            existing.totalSales += total;
+            existing.orders.push({
+              id: order.id,
+              total: total,
+              status: order.status,
+              date: order.date_created
+            });
+          } else {
+            paymentMethods.set(method, {
+              method: method,
+              title: title,
+              count: 1,
+              totalSales: total,
+              orders: [{
+                id: order.id,
+                total: total,
+                status: order.status,
+                date: order.date_created
+              }]
+            });
+          }
+        });
+        
+        // Convertir Map a objeto para envío
+        const result = Array.from(paymentMethods.values())
+          .sort((a, b) => b.totalSales - a.totalSales);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: true, 
+          totalOrders: orders.length,
+          paymentMethods: result 
+        }));
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: 'Error analizando métodos de pago',
           details: error.message 
         }));
       }
