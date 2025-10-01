@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Login - Adaptoheal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-8">
+        <div class="max-w-md mx-auto bg-white rounded-lg shadow p-6">
+            <h1 class="text-xl font-bold mb-4">🔄 Auto Login</h1>
+            <div id="status" class="mb-4 text-center">
+                <p>Iniciando login automático...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function autoLogin() {
+            const status = document.getElementById('status');
+            
+            try {
+                status.innerHTML = '<p class="text-blue-600">🔐 Haciendo login...</p>';
+                
+                // Limpiar localStorage primero
+                localStorage.clear();
+                
+                const loginResponse = await axios.post('/api/login', {
+                    email: 'marco@serrano.marketing',
+                    password: 'Adaptoheal2025!'
+                });
+                
+                if (!loginResponse.data.success) {
+                    throw new Error('Login falló: ' + loginResponse.data.message);
+                }
+                
+                // Guardar token
+                const token = loginResponse.data.token;
+                const userInfo = loginResponse.data.user;
+                
+                localStorage.setItem('auth_token', token);
+                localStorage.setItem('user_info', JSON.stringify(userInfo));
+                
+                status.innerHTML = '<p class="text-green-600">✅ Login exitoso! Redirigiendo...</p>';
+                
+                // Redirigir al dashboard
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Error en login:', error);
+                status.innerHTML = `<p class="text-red-600">❌ Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Ejecutar al cargar
+        window.addEventListener('DOMContentLoaded', autoLogin);
+    </script>
+</body>
+</html>

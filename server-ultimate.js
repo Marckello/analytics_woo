@@ -35,11 +35,25 @@ const getWooCommerceAuth = () => {
   };
 };
 
-// Función para obtener datos de WooCommerce
+// Sistema de caché simple para WooCommerce (5 minutos de duración)
+const wooCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+
+// Función para obtener datos de WooCommerce con caché
 const fetchWooCommerceData = async (endpoint, params = '') => {
+  const cacheKey = `${endpoint}?${params}`;
+  const cached = wooCache.get(cacheKey);
+  
+  // Verificar si hay datos en caché y no están expirados
+  if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+    console.log(`📋 Cache hit para: ${endpoint}`);
+    return cached.data;
+  }
+  
   const apiUrl = `${WOOCOMMERCE_URL}/wp-json/wc/v3/${endpoint}${params ? `?${params}` : ''}`;
   
   try {
+    console.log(`🌐 Fetching from WooCommerce: ${endpoint}`);
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: getWooCommerceAuth()
@@ -49,7 +63,15 @@ const fetchWooCommerceData = async (endpoint, params = '') => {
       throw new Error(`WooCommerce API error: ${response.status}`);
     }
     
-    return await response.json();
+    const data = await response.json();
+    
+    // Guardar en caché
+    wooCache.set(cacheKey, {
+      data: data,
+      timestamp: Date.now()
+    });
+    
+    return data;
   } catch (error) {
     console.error('Error fetching WooCommerce data:', error);
     throw error;
@@ -423,10 +445,10 @@ const handleDashboard = async (query) => {
       }
     }
     
-    // OBTENER TODAS LAS ÓRDENES y filtrar solo estados exitosos
+    // OBTENER TODAS LAS ÓRDENES y filtrar solo estados exitosos (reducido para velocidad)
     const allOrders = await fetchWooCommerceData(
       'orders', 
-      `after=${startDate}&before=${endDate}&per_page=100`
+      `after=${startDate}&before=${endDate}&per_page=50`
     );
     
     // FILTRAR por estados seleccionados por el usuario
@@ -660,7 +682,7 @@ const handleDashboard = async (query) => {
       // Obtener órdenes del período anterior
       const allPreviousOrders = await fetchWooCommerceData(
         'orders', 
-        `after=${previousPeriod.startDate}&before=${previousPeriod.endDate}&per_page=100`
+        `after=${previousPeriod.startDate}&before=${previousPeriod.endDate}&per_page=50`
       );
       
       const previousOrders = allPreviousOrders.filter((order) => {
@@ -848,10 +870,62 @@ const handleDashboard = async (query) => {
       comparativeData = null;
     }
 
+    // PROCESAMIENTO DE CUPONES
+    const couponsStats = {};
+    let totalCouponsAmount = 0;
+    let totalCouponsOrders = 0;
+    
+    try {
+      // Procesar cupones desde las órdenes
+      orders.forEach((order) => {
+        if (order.coupon_lines && Array.isArray(order.coupon_lines) && order.coupon_lines.length > 0) {
+          totalCouponsOrders++;
+          
+          order.coupon_lines.forEach((couponLine) => {
+            const couponCode = couponLine.code || 'Cupón sin código';
+            const discountAmount = Math.abs(parseFloat(couponLine.discount) || 0);
+            
+            if (!couponsStats[couponCode]) {
+              couponsStats[couponCode] = {
+                code: couponCode,
+                totalDiscount: 0,
+                ordersCount: 0,
+                orders: new Set()
+              };
+            }
+            
+            couponsStats[couponCode].totalDiscount += discountAmount;
+            couponsStats[couponCode].orders.add(order.id);
+            totalCouponsAmount += discountAmount;
+          });
+        }
+      });
+      
+      // Convertir a array y calcular métricas
+      Object.keys(couponsStats).forEach(code => {
+        couponsStats[code].ordersCount = couponsStats[code].orders.size;
+        couponsStats[code].avgDiscountPerOrder = couponsStats[code].ordersCount > 0 ? 
+          couponsStats[code].totalDiscount / couponsStats[code].ordersCount : 0;
+        couponsStats[code].percentage = totalCouponsAmount > 0 ? 
+          (couponsStats[code].totalDiscount / totalCouponsAmount * 100).toFixed(1) : '0';
+        delete couponsStats[code].orders; // Limpiar el Set
+      });
+      
+      console.log(`Cupones procesados: ${Object.keys(couponsStats).length} cupones únicos, ${totalCouponsOrders} órdenes con cupón, $${totalCouponsAmount} total descontado`);
+      
+    } catch (error) {
+      console.error('Error procesando cupones:', error);
+    }
+
     return {
       success: true,
       data: {
-        // MÉTRICAS PRINCIPALES TOTALES
+        // MÉTRICAS PRINCIPALES TOTALES (nombres esperados por el frontend)
+        revenue: totalSales,
+        orders: orders.length,
+        averageOrderValue: avgTicket,
+        
+        // COMPATIBILIDAD CON NOMBRES ANTIGUOS
         totalSales30Days: totalSales,
         avgTicket30Days: avgTicket,
         ordersCount30Days: orders.length,
@@ -928,6 +1002,18 @@ const handleDashboard = async (query) => {
           percentage: product.percentage             // Porcentaje de participación
         })),
         topOrders: topOrders,
+        
+        // CUPONES DE DESCUENTO
+        coupons: {
+          totalAmount: totalCouponsAmount,
+          totalOrders: totalCouponsOrders,
+          couponsUsed: Object.values(couponsStats).sort((a, b) => b.totalDiscount - a.totalDiscount),
+          summary: {
+            uniqueCoupons: Object.keys(couponsStats).length,
+            avgDiscountPerOrder: totalCouponsOrders > 0 ? totalCouponsAmount / totalCouponsOrders : 0,
+            percentageOfTotalSales: totalSales > 0 ? (totalCouponsAmount / totalSales * 100).toFixed(1) : '0'
+          }
+        },
         
         // DATOS COMPARATIVOS CON PERÍODO ANTERIOR
         comparative: comparativeData
@@ -1311,12 +1397,7 @@ const getHTML = () => {
                                 <span class="text-white text-sm font-medium">En vivo</span>
                             </div>
                             
-                            <!-- Información del período de comparación -->
-                            <div id="comparison-info" class="text-white text-xs bg-white/20 px-3 py-1 rounded-full border border-white/30 hidden">
-                                <i class="fas fa-chart-line mr-1"></i>
-                                <span id="comparison-label">Comparando vs período anterior</span>
-                            </div>
-                            
+
                             <!-- User Info and Actions - Desktop Only -->
                             <div class="flex items-center space-x-3 border-l border-white/20 pl-4">
                                 <div class="text-right">
@@ -1451,7 +1532,15 @@ const getHTML = () => {
                 </div>
                 <div class="mt-6 text-center">
                     <p class="text-lg font-medium text-gray-700">Conectando con WooCommerce</p>
-                    <p class="text-sm text-gray-500 mt-2">Analizando datos de Agosto - Septiembre 2025...</p>
+                    <p class="text-sm text-gray-500 mt-2">Procesando datos de ventas... Esto puede tardar 10-15 segundos</p>
+                    <div class="mt-4 flex items-center justify-center space-x-2">
+                        <div class="flex space-x-1">
+                            <div class="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                            <div class="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                            <div class="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                        </div>
+                        <span class="text-xs text-gray-400 ml-3">⏱️ Tiempo estimado: 10-15 seg</span>
+                    </div>
                 </div>
             </div>
 
@@ -1602,6 +1691,60 @@ const getHTML = () => {
                                 <div class="mt-3 text-xs text-gray-400">
                                     <i class="fas fa-shopping-cart mr-1"></i>
                                     Compras regulares y tickets menores
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NUEVA SECCIÓN: Cupones de Descuento -->
+                <div class="glass-effect rounded-xl p-8 card-hover">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-orange-500 to-red-600">
+                                <i class="fas fa-tags text-xl text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">Cupones de Descuento</h3>
+                                <p class="text-sm text-gray-600">Análisis de cupones utilizados en el período</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-medium text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
+                            <i class="fas fa-percent mr-1"></i>DESCUENTOS
+                        </span>
+                    </div>
+                    
+                    <div id="coupons-section">
+                        <!-- Loading state -->
+                        <div id="coupons-loading" class="text-center py-8">
+                            <i class="fas fa-spinner fa-spin text-2xl text-gray-400 mb-3"></i>
+                            <p class="text-sm text-gray-500">Cargando cupones...</p>
+                        </div>
+                        
+                        <!-- No coupons state -->
+                        <div id="coupons-empty" class="hidden text-center py-8">
+                            <i class="fas fa-tags text-3xl text-gray-300 mb-3"></i>
+                            <p class="text-sm text-gray-500">No se encontraron cupones en este período</p>
+                        </div>
+                        
+                        <!-- Coupons grid -->
+                        <div id="coupons-grid" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            <!-- Los cupones se cargarán aquí dinámicamente -->
+                        </div>
+                        
+                        <!-- Resumen de cupones -->
+                        <div id="coupons-summary" class="hidden mt-6 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-100">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">Total Descontado</p>
+                                    <div class="flex items-center space-x-2">
+                                        <p id="total-coupons-amount" class="text-xl font-bold text-gray-900">$0 MXN</p>
+                                        <div id="total-coupons-change" class=""></div>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-sm font-medium text-gray-600">Órdenes con Cupón</p>
+                                    <p id="total-coupons-orders" class="text-xl font-bold text-orange-600">0</p>
                                 </div>
                             </div>
                         </div>
@@ -1913,12 +2056,17 @@ const getHTML = () => {
 
             <!-- Error State -->
             <div id="error" class="hidden bg-red-50 border border-red-200 rounded-lg p-6">
-                <div class="flex items-center">
-                    <i class="fas fa-exclamation-triangle text-red-600 mr-3"></i>
-                    <div>
-                        <h3 class="text-red-800 font-medium">Error de Conexión</h3>
-                        <p class="text-red-600 text-sm mt-1">No se pudo conectar con la API de WooCommerce. Verifica la configuración.</p>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <i class="fas fa-exclamation-triangle text-red-600 mr-3"></i>
+                        <div>
+                            <h3 id="error-title" class="text-red-800 font-medium">Error de Conexión</h3>
+                            <p id="error-message" class="text-red-600 text-sm mt-1">Cargando detalles del error...</p>
+                        </div>
                     </div>
+                    <button onclick="retryConnection()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm">
+                        <i class="fas fa-refresh mr-1"></i>Reintentar
+                    </button>
                 </div>
             </div>
         </div>
@@ -2131,8 +2279,57 @@ const getHTML = () => {
           return statuses;
         }
 
+        // Función para verificar si token está expirado
+        function isTokenExpired(token) {
+          if (!token) return true;
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const currentTime = Math.floor(Date.now() / 1000);
+            return payload.exp < currentTime;
+          } catch (error) {
+            return true;
+          }
+        }
+
+        // Función para verificar autenticación antes de cargar dashboard
+        function checkAuthBeforeLoad() {
+          const token = localStorage.getItem('auth_token');
+          
+          // Si no hay token, redirigir inmediatamente
+          if (!token) {
+            console.log('No hay token, redirigiendo a login');
+            localStorage.clear();
+            window.location.href = '/login';
+            return false;
+          }
+          
+          // Verificar si el token está expirado
+          if (isTokenExpired(token)) {
+            console.log('Token expirado, redirigiendo a login');
+            localStorage.clear();
+            window.location.href = '/login';
+            return false;
+          }
+          
+          // Verificar formato válido del token (debe tener 3 partes separadas por puntos)
+          const tokenParts = token.split('.');
+          if (tokenParts.length !== 3) {
+            console.log('Token con formato inválido, redirigiendo a login');
+            localStorage.clear();
+            window.location.href = '/login';
+            return false;
+          }
+          
+          return true;
+        }
+
         // Cargar dashboard
         async function loadDashboard() {
+          // Verificar autenticación antes de proceder
+          if (!checkAuthBeforeLoad()) {
+            return;
+          }
+          
           try {
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('dashboard').classList.add('hidden');
@@ -2155,6 +2352,7 @@ const getHTML = () => {
             
             // Período de comparación (simplificado)
             if (comparisonEnabled) {
+              queryParams.set('enableComparison', 'true');
               queryParams.set('comparison_period', 'auto'); // Siempre automático
             }
 
@@ -2164,8 +2362,12 @@ const getHTML = () => {
             const response = await axios.get(\`/api/dashboard?\${queryParams.toString()}\`);
             const result = response.data;
 
-            if (!result.success) {
-              throw new Error(result.error || 'Error desconocido');
+            console.log('Respuesta del API:', result);
+            console.log('Success value:', result.success, typeof result.success);
+
+            if (!result || result.success !== true) {
+              console.error('API response failed:', result);
+              throw new Error(result?.error || result?.message || 'Error de API - respuesta inválida');
             }
 
             dashboardData = result.data;
@@ -2179,6 +2381,60 @@ const getHTML = () => {
 
           } catch (error) {
             console.error('Error loading dashboard:', error);
+            console.error('Error stack:', error.stack);
+            console.error('Error response:', error.response);
+            
+            // Determinar tipo de error y mostrar mensaje apropiado
+            let errorTitle = 'Error Inesperado';
+            let errorMessage = 'Ocurrió un error inesperado: ' + error.message;
+            
+            // Verificar si es error de autenticación (token expirado/inválido)
+            const isTokenError = (
+              (error.response && error.response.status === 401) ||
+              (error.message && error.message.includes('Token')) ||
+              (error.response && error.response.data && error.response.data.error && 
+               (error.response.data.error.includes('Token') || 
+                error.response.data.error.includes('token') ||
+                error.response.data.error.includes('inválido') ||
+                error.response.data.error.includes('expirado')))
+            );
+            
+            if (isTokenError) {
+              errorTitle = 'Sesión Expirada';
+              errorMessage = 'Tu sesión ha expirado. Redirigiendo al login...';
+              // Limpiar completamente el localStorage
+              localStorage.removeItem('auth_token');
+              localStorage.removeItem('user_info');
+              localStorage.clear(); // Limpieza adicional por seguridad
+              console.log('Token inválido detectado - Limpiando localStorage y redirigiendo');
+              setTimeout(() => {
+                window.location.href = '/login';
+              }, 2000);
+            } else if (error.response && error.response.status >= 500) {
+              errorTitle = 'Error del Servidor';
+              errorMessage = 'Error interno del servidor. Por favor, intenta más tarde.';
+            } else if (error.message.includes('Network Error')) {
+              errorTitle = 'Error de Conectividad';
+              errorMessage = 'No se pudo conectar con el servidor. Verifica tu conexión a internet.';
+            } else if (error.response && error.response.data && error.response.data.error) {
+              // Si el error menciona token o autenticación
+              if (error.response.data.error.includes('Token') || error.response.data.error.includes('token')) {
+                errorTitle = 'Problema de Autenticación';
+                errorMessage = 'Error de autenticación. Redirigiendo al login...';
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user_info');
+                setTimeout(() => {
+                  window.location.href = '/login';
+                }, 2000);
+              } else {
+                errorTitle = 'Error de API';
+                errorMessage = error.response.data.error;
+              }
+            }
+            
+            // Mostrar error con detalles específicos
+            document.getElementById('error-title').textContent = errorTitle;
+            document.getElementById('error-message').textContent = errorMessage;
             document.getElementById('loading').classList.add('hidden');
             document.getElementById('error').classList.remove('hidden');
             document.getElementById('dashboard').classList.add('hidden');
@@ -2197,10 +2453,7 @@ const getHTML = () => {
           const prefix = isPositive ? '+' : '';
           
           if (showIcon) {
-            return \`<span class="\${bgClass} text-xs font-semibold px-2 py-1 rounded-full border inline-flex items-center space-x-1">
-              <i class="\${iconClass} text-xs"></i>
-              <span>\${prefix}\${Math.abs(change).toFixed(1)}%</span>
-            </span>\`;
+            return \`<span class="\${bgClass} text-xs font-semibold px-2 py-1 rounded-full border inline-flex items-center space-x-1"><i class="\${iconClass} text-xs"></i><span>\${prefix}\${Math.abs(change).toFixed(1)}%</span></span>\`;
           } else {
             return \`<span class="\${bgClass} px-2 py-1 rounded text-xs font-medium">\${prefix}\${change.toFixed(1)}%</span>\`;
           }
@@ -2208,11 +2461,14 @@ const getHTML = () => {
 
         // Función para actualizar información de comparación
         function updateComparisonInfo(periodInfo) {
-          const comparisonInfoDiv = document.getElementById('comparison-info');
-          const comparisonLabel = document.getElementById('comparison-label');
+          const comparisonInfoDiv = document.getElementById('comparison-period-info');
+          const comparisonLabel = document.getElementById('comparison-period-text');
           
-          if (!periodInfo) {
-            comparisonInfoDiv.classList.add('hidden');
+          if (!periodInfo || !comparisonLabel) {
+            // Si no hay información de comparación o elemento no existe, no hacer nada
+            if (comparisonInfoDiv) {
+              comparisonInfoDiv.classList.add('hidden');
+            }
             return;
           }
           
@@ -2256,7 +2512,9 @@ const getHTML = () => {
           }
           
           comparisonLabel.textContent = labelText;
-          comparisonInfoDiv.classList.remove('hidden');
+          if (comparisonInfoDiv) {
+            comparisonInfoDiv.classList.remove('hidden');
+          }
         }
         
         // Actualizar UI del dashboard
@@ -2401,6 +2659,9 @@ const getHTML = () => {
           
           // Actualizar labels de período dinámicamente
           updateProductsAndOrdersLabels();
+          
+          // Actualizar sección de cupones
+          updateCouponsSection();
 
           document.getElementById('loading').classList.add('hidden');
           document.getElementById('dashboard').classList.remove('hidden');
@@ -2483,6 +2744,113 @@ const getHTML = () => {
           
           const activeStatusDisplay = activeStatuses.map(s => statusNames[s]).join(', ');
           document.getElementById('active-statuses-display').textContent = activeStatusDisplay;
+        }
+
+        // Actualizar sección de cupones
+        function updateCouponsSection() {
+          if (!dashboardData || !dashboardData.coupons) {
+            document.getElementById('coupons-loading').classList.add('hidden');
+            document.getElementById('coupons-empty').classList.remove('hidden');
+            document.getElementById('coupons-grid').classList.add('hidden');
+            document.getElementById('coupons-summary').classList.add('hidden');
+            return;
+          }
+          
+          const couponsData = dashboardData.coupons;
+          const comparative = dashboardData.comparative;
+          
+          // Ocultar loading
+          document.getElementById('coupons-loading').classList.add('hidden');
+          
+          // Si no hay cupones
+          if (couponsData.couponsUsed.length === 0) {
+            document.getElementById('coupons-empty').classList.remove('hidden');
+            document.getElementById('coupons-grid').classList.add('hidden');
+            document.getElementById('coupons-summary').classList.add('hidden');
+            return;
+          }
+          
+          // Mostrar cupones
+          document.getElementById('coupons-empty').classList.add('hidden');
+          document.getElementById('coupons-grid').classList.remove('hidden');
+          document.getElementById('coupons-summary').classList.remove('hidden');
+          
+          // Generar HTML para cada cupón
+          const couponsHTML = couponsData.couponsUsed.map((coupon, index) => {
+            const bgColors = [
+              'from-orange-50 to-red-50 border-orange-100',
+              'from-amber-50 to-yellow-50 border-amber-100',
+              'from-rose-50 to-pink-50 border-rose-100',
+              'from-violet-50 to-purple-50 border-violet-100',
+              'from-cyan-50 to-blue-50 border-cyan-100'
+            ];
+            const iconColors = [
+              'bg-orange-500',
+              'bg-amber-500', 
+              'bg-rose-500',
+              'bg-violet-500',
+              'bg-cyan-500'
+            ];
+            const textColors = [
+              'text-orange-600 bg-orange-100',
+              'text-amber-600 bg-amber-100',
+              'text-rose-600 bg-rose-100', 
+              'text-violet-600 bg-violet-100',
+              'text-cyan-600 bg-cyan-100'
+            ];
+            
+            const colorIndex = index % bgColors.length;
+            
+            return \`
+              <div class="bg-gradient-to-r \${bgColors[colorIndex]} rounded-xl p-4 border">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center space-x-2">
+                    <div class="p-2 rounded-lg \${iconColors[colorIndex]}">
+                      <i class="fas fa-tag text-sm text-white"></i>
+                    </div>
+                    <div>
+                      <p class="text-xs font-medium text-gray-600">Cupón</p>
+                      <p class="text-sm font-bold text-gray-900 break-all">\${coupon.code}</p>
+                    </div>
+                  </div>
+                  <span class="text-xs font-bold \${textColors[colorIndex]} px-2 py-1 rounded-full">\${coupon.percentage}%</span>
+                </div>
+                <div class="space-y-1">
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs text-gray-500">Total descontado:</p>
+                    <p class="text-sm font-bold text-gray-900">\${formatCurrency(coupon.totalDiscount)}</p>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs text-gray-500">Órdenes:</p>
+                    <p class="text-sm font-medium text-gray-700">\${coupon.ordersCount}</p>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs text-gray-500">Promedio/orden:</p>
+                    <p class="text-sm font-medium text-gray-700">\${formatCurrency(coupon.avgDiscountPerOrder)}</p>
+                  </div>
+                </div>
+              </div>
+            \`;
+          }).join('');
+          
+          document.getElementById('coupons-grid').innerHTML = couponsHTML;
+          
+          // Actualizar resumen
+          document.getElementById('total-coupons-amount').textContent = formatCurrency(couponsData.totalAmount);
+          document.getElementById('total-coupons-orders').textContent = formatNumber(couponsData.totalOrders);
+          
+          // Mostrar indicador comparativo si disponible
+          if (comparative && comparative.coupons) {
+            document.getElementById('total-coupons-change').innerHTML = formatPercentageChange(comparative.coupons.amountChange);
+          } else {
+            document.getElementById('total-coupons-change').innerHTML = '';
+          }
+        }
+
+        // Función para reintentar conexión
+        function retryConnection() {
+          document.getElementById('error').classList.add('hidden');
+          loadDashboard();
         }
 
         // Funciones de chat
@@ -2682,10 +3050,51 @@ const getHTML = () => {
             return;
           }
 
-          console.log('Token encontrado:', token.substring(0, 50) + '...');
+          // CRÍTICO: Verificar si el token está expirado antes de usarlo
+          if (isTokenExpired(token)) {
+            console.log('Token expirado detectado, limpiando y redirigiendo...');
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_info');
+            // Mostrar mensaje por 2 segundos antes de redirigir
+            document.body.innerHTML = '<div style="text-align:center; margin-top:50px; font-family:Arial;"><h2>🔄 Token expirado</h2><p>Redirigiendo al login...</p></div>';
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 2000);
+            return;
+          }
+
+          console.log('Token válido encontrado:', token.substring(0, 50) + '...');
           
           // Configurar axios con el token
           axios.defaults.headers.common['Authorization'] = \`Bearer \${token}\`;
+          
+          // Configurar interceptor de respuesta para manejar errores de token automáticamente
+          axios.interceptors.response.use(
+            response => response,
+            error => {
+              console.error('Axios interceptor - Error detectado:', error);
+              
+              // Verificar si es error de token
+              const isTokenError = (
+                (error.response && error.response.status === 401) ||
+                (error.response && error.response.data && error.response.data.error && 
+                 (error.response.data.error.includes('Token') || 
+                  error.response.data.error.includes('token') ||
+                  error.response.data.error.includes('inválido') ||
+                  error.response.data.error.includes('expirado')))
+              );
+              
+              if (isTokenError) {
+                console.log('Interceptor - Token inválido detectado, limpiando y redirigiendo');
+                localStorage.clear();
+                delete axios.defaults.headers.common['Authorization'];
+                window.location.href = '/login';
+                return Promise.reject(new Error('Token inválido - Redirigiendo al login'));
+              }
+              
+              return Promise.reject(error);
+            }
+          );
           
           // Inicializar información del usuario
           initializeUserInfo();
@@ -2697,17 +3106,15 @@ const getHTML = () => {
             updateComparisonPeriodText();
           }
           
-          // Intentar cargar dashboard directamente
-          try {
-            console.log('Intentando cargar dashboard...');
-            await loadDashboard();
-          } catch (error) {
-            console.error('Error cargando dashboard:', error);
-            // Si falla, limpiar token y redirigir
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user_info');
-            window.location.href = '/login';
+          // Verificar token con el servidor antes de cargar dashboard
+          const isValidToken = await verifyTokenWithServer();
+          if (!isValidToken) {
+            return; // verifyTokenWithServer ya maneja la redirección
           }
+          
+          // Intentar cargar dashboard directamente
+          console.log('Token válido, cargando dashboard...');
+          await loadDashboard();
         });
         
         // === GESTIÓN DE USUARIOS ===
@@ -3023,6 +3430,90 @@ const server = http.createServer(async (req, res) => {
       } catch (error) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('Login page not found');
+      }
+      return;
+      
+    } else if (pathname === '/fix-token') {
+      // Página de actualización de token
+      try {
+        const fixTokenHTML = fs.readFileSync(path.join(__dirname, 'fix-token.html'), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(fixTokenHTML);
+      } catch (error) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Fix token page not found');
+      }
+      return;
+      
+    } else if (pathname === '/clear-token') {
+      // Página de limpieza de token expirado
+      try {
+        const clearTokenHTML = fs.readFileSync(path.join(__dirname, 'clear-token.html'), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(clearTokenHTML);
+      } catch (error) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Clear token page not found');
+      }
+      return;
+      
+    } else if (pathname === '/force-clean') {
+      // Página de limpieza forzada completa
+      try {
+        const forceCleanHTML = fs.readFileSync(path.join(__dirname, 'force-clean.html'), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(forceCleanHTML);
+      } catch (error) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Force clean page not found');
+      }
+      return;
+      
+    } else if (pathname === '/test-dashboard') {
+      // Página de prueba del dashboard con auto login
+      try {
+        const testDashboardHTML = fs.readFileSync(path.join(__dirname, 'test-dashboard.html'), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(testDashboardHTML);
+      } catch (error) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Test dashboard page not found');
+      }
+      return;
+      
+    } else if (pathname === '/autologin') {
+      // Página de auto login para acceder al dashboard
+      try {
+        const autoLoginHTML = fs.readFileSync(path.join(__dirname, 'autologin.html'), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(autoLoginHTML);
+      } catch (error) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Auto login page not found');
+      }
+      return;
+      
+    } else if (pathname === '/test-complete') {
+      // Página de pruebas completas
+      try {
+        const testHTML = fs.readFileSync(path.join(__dirname, 'complete_test.html'), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(testHTML);
+      } catch (error) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Test page not found');
+      }
+      return;
+      
+    } else if (pathname === '/simulate-login') {
+      // Página de simulación de login
+      try {
+        const simulateHTML = fs.readFileSync(path.join(__dirname, 'simulate_login.html'), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(simulateHTML);
+      } catch (error) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Simulate page not found');
       }
       return;
       

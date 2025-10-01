@@ -8,7 +8,7 @@ const path = require('path');
 
 // Configuración de autenticación
 const JWT_SECRET = process.env.JWT_SECRET || 'adaptoheal_secure_jwt_secret_2025';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'; // 7 días de duración
 const MAX_USERS = parseInt(process.env.MAX_USERS) || 5;
 const USERS_FILE = path.join(__dirname, 'users.json');
 

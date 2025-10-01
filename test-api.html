@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Dashboard API</title></head>
+<body>
+<script>
+// Test if we can reach the API
+fetch("/api/dashboard", {
+    headers: {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImVtYWlsIjoibWFyY29Ac2VycmFuby5tYXJrZXRpbmciLCJyb2xlIjoiYWRtaW4iLCJuYW1lIjoiTWFyY28gU2VycmFubyIsImlhdCI6MTc1OTMxODg2MSwiZXhwIjoxNzU5NDA1MjYxfQ.HfgFutFlm4wW_NViZF385DPBboIEshpgdHbvd62JbSM"
+    }
+})
+.then(response => response.json())
+.then(data => {
+    document.body.innerHTML = "<h1>WooCommerce Status: " + (data.success ? "✅ CONNECTED" : "❌ ERROR") + "</h1>" +
+    "<p>Total Sales: $" + (data.data?.totalSales30Days || 0) + "</p>" +
+    "<p>Orders: " + (data.data?.ordersCount30Days || 0) + "</p>" +
+    "<p>Period: " + (data.debug?.periodo || "N/A") + "</p>";
+})
+.catch(err => {
+    document.body.innerHTML = "<h1>❌ CONNECTION ERROR: " + err.message + "</h1>";
+});
+</script>
+</body>
+</html>

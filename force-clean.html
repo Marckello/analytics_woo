@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limpieza Forzada - Adaptoheal Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-purple-50 min-h-screen">
+    <div class="container mx-auto px-4 py-12">
+        <div class="max-w-2xl mx-auto">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-broom text-2xl text-white"></i>
+                </div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">
+                    🧹 Limpieza Forzada del Sistema
+                </h1>
+                <p class="text-gray-600">
+                    Esta página limpiará completamente tu navegador de tokens inválidos
+                </p>
+            </div>
+
+            <!-- Status Card -->
+            <div class="bg-white rounded-xl shadow-lg p-8 mb-6">
+                <div class="text-center">
+                    <div id="status-icon" class="w-20 h-20 mx-auto mb-4 flex items-center justify-center rounded-full bg-blue-100">
+                        <div class="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+                    </div>
+                    
+                    <h2 id="status-title" class="text-xl font-semibold text-gray-900 mb-2">
+                        Iniciando limpieza...
+                    </h2>
+                    
+                    <p id="status-message" class="text-gray-600 mb-6">
+                        Preparando limpieza del sistema
+                    </p>
+                    
+                    <div id="progress-container" class="mb-6">
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <p id="progress-text" class="text-sm text-gray-500 mt-2">0% completado</p>
+                    </div>
+                    
+                    <div id="actions" class="space-y-3">
+                        <button id="manual-clean" onclick="manualClean()" 
+                                class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                            🔧 Ejecutar Limpieza Manual
+                        </button>
+                        
+                        <button id="goto-dashboard" onclick="gotoDashboard()" 
+                                class="w-full bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium hidden">
+                            ✅ Ir al Dashboard
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Logs -->
+                <div id="logs-container" class="mt-8 hidden">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">📋 Registro de Actividad:</h3>
+                    <div id="logs" class="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto text-sm font-mono">
+                        <!-- Los logs aparecerán aquí -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <script>
+        let progress = 0;
+        let cleaningComplete = false;
+        
+        function log(message) {
+            const logs = document.getElementById('logs');
+            const logsContainer = document.getElementById('logs-container');
+            logsContainer.classList.remove('hidden');
+            
+            const time = new Date().toLocaleTimeString();
+            logs.innerHTML += `<div>[${time}] ${message}</div>`;
+            logs.scrollTop = logs.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateProgress(percent, message) {
+            progress = percent;
+            document.getElementById('progress-bar').style.width = percent + '%';
+            document.getElementById('progress-text').textContent = percent + '% completado';
+            if (message) {
+                document.getElementById('status-message').textContent = message;
+                log(message);
+            }
+        }
+        
+        function updateStatus(title, message, iconHtml) {
+            document.getElementById('status-title').textContent = title;
+            document.getElementById('status-message').textContent = message;
+            if (iconHtml) {
+                document.getElementById('status-icon').innerHTML = iconHtml;
+            }
+        }
+        
+        async function automaticClean() {
+            log('🚀 Iniciando limpieza automática del sistema...');
+            updateProgress(10, 'Verificando estado actual...');
+            
+            // Paso 1: Verificar tokens existentes
+            await sleep(1000);
+            const authToken = localStorage.getItem('auth_token');
+            const userInfo = localStorage.getItem('user_info');
+            
+            if (authToken || userInfo) {
+                log(`🔍 Tokens encontrados: auth_token=${authToken ? 'SÍ' : 'NO'}, user_info=${userInfo ? 'SÍ' : 'NO'}`);
+                updateProgress(25, 'Tokens detectados, procediendo con limpieza...');
+            } else {
+                log('✅ No se encontraron tokens previos');
+                updateProgress(25, 'Sistema limpio detectado');
+            }
+            
+            // Paso 2: Limpiar localStorage
+            await sleep(1000);
+            updateProgress(40, 'Limpiando localStorage...');
+            localStorage.clear();
+            log('🧹 localStorage limpiado completamente');
+            
+            // Paso 3: Limpiar sessionStorage
+            await sleep(500);
+            updateProgress(55, 'Limpiando sessionStorage...');
+            sessionStorage.clear();
+            log('🧹 sessionStorage limpiado');
+            
+            // Paso 4: Limpiar cookies de la página
+            await sleep(500);
+            updateProgress(70, 'Limpiando cookies...');
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            log('🍪 Cookies limpiadas');
+            
+            // Paso 5: Limpiar cache del navegador (si es posible)
+            await sleep(500);
+            updateProgress(85, 'Limpiando cache del navegador...');
+            if ('caches' in window) {
+                try {
+                    const cacheNames = await caches.keys();
+                    await Promise.all(cacheNames.map(name => caches.delete(name)));
+                    log('💾 Cache del navegador limpiado');
+                } catch (e) {
+                    log('⚠️ No se pudo limpiar cache: ' + e.message);
+                }
+            }
+            
+            // Paso 6: Finalizar
+            await sleep(1000);
+            updateProgress(100, '¡Limpieza completada!');
+            
+            updateStatus(
+                '✅ Limpieza Exitosa', 
+                'Tu navegador ha sido completamente limpiado',
+                '<i class="fas fa-check-circle text-4xl text-green-600"></i>'
+            );
+            
+            log('🎉 ¡Limpieza automática completada exitosamente!');
+            log('👉 Ahora puedes acceder al dashboard con credenciales frescas');
+            
+            // Mostrar botón para ir al dashboard
+            document.getElementById('goto-dashboard').classList.remove('hidden');
+            document.getElementById('manual-clean').classList.add('hidden');
+            
+            cleaningComplete = true;
+        }
+        
+        function manualClean() {
+            log('🛠️ Ejecutando limpieza manual adicional...');
+            
+            // Limpieza manual más agresiva
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Limpiar todas las variables globales posibles
+                if (typeof axios !== 'undefined') {
+                    delete axios.defaults.headers.common['Authorization'];
+                }
+                
+                // Limpiar cualquier timer
+                const highestTimeoutId = setTimeout(";");
+                for (let i = 0; i < highestTimeoutId; i++) {
+                    clearTimeout(i);
+                }
+                
+                log('✅ Limpieza manual completada');
+                updateStatus(
+                    '🔧 Limpieza Manual Exitosa', 
+                    'Sistema completamente resetado',
+                    '<i class="fas fa-tools text-4xl text-blue-600"></i>'
+                );
+                
+                document.getElementById('goto-dashboard').classList.remove('hidden');
+                document.getElementById('manual-clean').classList.add('hidden');
+                
+            } catch (error) {
+                log('❌ Error en limpieza manual: ' + error.message);
+            }
+        }
+        
+        function gotoDashboard() {
+            log('🚀 Redirigiendo al dashboard...');
+            window.location.href = '/';
+        }
+        
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        // Iniciar limpieza automática al cargar
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(automaticClean, 1000);
+        });
+    </script>
+</body>
+</html>
