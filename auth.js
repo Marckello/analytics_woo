@@ -144,7 +144,7 @@ const verifyToken = (token) => {
   }
 };
 
-// Middleware de autenticación
+// Middleware de autenticación para APIs (retorna JSON)
 const authMiddleware = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -173,6 +173,19 @@ const authMiddleware = async (req, res, next) => {
     console.error('Error en middleware de autenticación:', error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Error interno del servidor' }));
+  }
+};
+
+// Middleware de autenticación para páginas HTML (maneja autenticación del lado cliente)
+const webAuthMiddleware = async (req, res, next) => {
+  try {
+    // Para páginas HTML, siempre permitir el acceso y dejar que JavaScript maneje la autenticación
+    // El dashboard se cargará y el JavaScript verificará el token
+    next();
+  } catch (error) {
+    console.error('Error en middleware de autenticación web:', error);
+    res.writeHead(500, { 'Content-Type': 'text/html' });
+    res.end('<h1>Error del servidor</h1>');
   }
 };
 
@@ -303,6 +316,7 @@ module.exports = {
   authenticateUser,
   verifyToken,
   authMiddleware,
+  webAuthMiddleware,
   addUser,
   deleteUser,
   listUsers,

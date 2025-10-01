@@ -12,6 +12,7 @@ const {
   authenticateUser,
   verifyToken,
   authMiddleware,
+  webAuthMiddleware,
   addUser,
   deleteUser,
   listUsers,
@@ -1979,8 +1980,63 @@ const getHTML = () => {
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
+        // Función para verificar autenticación
+        function checkAuthentication() {
+          const token = localStorage.getItem('auth_token');
+          if (!token) {
+            window.location.href = '/login';
+            return false;
+          }
+          
+          // Configurar axios para usar el token automáticamente
+          axios.defaults.headers.common['Authorization'] = \`Bearer \${token}\`;
+          return true;
+        }
+
+        // Verificar token con el servidor
+        async function verifyTokenWithServer() {
+          const token = localStorage.getItem('auth_token');
+          if (!token) {
+            window.location.href = '/login';
+            return false;
+          }
+
+          try {
+            const response = await axios.post('/api/verify-token', {}, {
+              headers: { 'Authorization': \`Bearer \${token}\` }
+            });
+            
+            if (response.data.success) {
+              return true;
+            } else {
+              localStorage.removeItem('auth_token');
+              localStorage.removeItem('user_info');
+              window.location.href = '/login';
+              return false;
+            }
+          } catch (error) {
+            console.error('Error verificando token:', error);
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_info');
+            window.location.href = '/login';
+            return false;
+          }
+        }
+
         // Inicializar dashboard al cargar la página
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
+          // Primero verificar autenticación
+          if (!checkAuthentication()) {
+            return; // Ya redirigió al login
+          }
+
+          // Verificar token con el servidor
+          const isValidToken = await verifyTokenWithServer();
+          if (!isValidToken) {
+            return; // Ya redirigió al login
+          }
+
+          // Token válido, cargar dashboard
           loadDashboard();
         });
         </script>
@@ -2121,7 +2177,7 @@ const server = http.createServer(async (req, res) => {
     // === RUTAS PROTEGIDAS ===
     } else if (pathname === '/') {
       // Página principal (protegida)
-      authMiddleware(req, res, () => {
+      webAuthMiddleware(req, res, () => {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(getHTML());
       });
