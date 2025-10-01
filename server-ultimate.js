@@ -1190,28 +1190,52 @@ const getHTML = () => {
         </style>
     </head>
     <body class="bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
-        <!-- Modern Header with Gradient -->
+        <!-- Modern Header with Gradient - RESPONSIVE OPTIMIZADO -->
         <div class="gradient-bg shadow-xl">
-            <div class="container mx-auto px-6 py-8">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-4">
+            <div class="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
+                <!-- Header Principal: Logo y Título -->
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-6 lg:space-y-0">
+                    <div class="flex items-center space-x-3 sm:space-x-4">
                         <img src="https://www.adaptohealmx.com/wp-content/uploads/2025/05/Logo1-300x86.webp" 
                              alt="Adaptoheal México" 
-                             class="h-12 w-auto">
+                             class="h-8 sm:h-10 lg:h-12 w-auto">
                         <div>
-                            <h1 class="text-3xl font-bold text-white">Analytics Dashboard</h1>
-                            <p class="text-blue-100 mt-1">Datos en tiempo real | Análisis Inteligente</p>
+                            <h1 class="text-lg sm:text-2xl lg:text-3xl font-bold text-white">Analytics Dashboard</h1>
+                            <p class="text-blue-100 mt-1 text-xs sm:text-sm">Datos en tiempo real | Análisis Inteligente</p>
                         </div>
                     </div>
                     
-                    <!-- SELECTOR DE PERÍODO AVANZADO -->
-                    <div class="flex items-center space-x-6">
-                        <div class="flex items-center space-x-3">
-                            <label class="text-white text-sm font-medium">Período Principal:</label>
-                            
-                            <!-- Selector de períodos predefinidos -->
-                            <select id="period-selector" onchange="changePeriod()" 
-                                    class="bg-white text-gray-800 border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-50 transition-all shadow-lg">
+                    <!-- User Info - Móvil en la misma línea -->
+                    <div class="flex items-center justify-end space-x-3 lg:hidden">
+                        <div class="text-right">
+                            <p id="user-name-mobile" class="text-white text-sm font-medium">Usuario</p>
+                            <p class="text-blue-100 text-xs">Dashboard</p>
+                        </div>
+                        
+                        <!-- Admin Users Button (only for admins) -->
+                        <button id="admin-users-btn-mobile" onclick="openUserManagement()" 
+                                class="bg-blue-500/20 hover:bg-blue-500/30 text-white px-2 py-1 rounded-lg text-xs font-medium transition-all duration-200 border border-blue-400/20 hidden">
+                            <i class="fas fa-users"></i>
+                        </button>
+                        
+                        <button onclick="logout()" 
+                                class="bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-lg text-xs font-medium transition-all duration-200 border border-white/20">
+                            <i class="fas fa-sign-out-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Controles de Período: Stack en móvil, flex en desktop -->
+                <div class="mt-6 lg:mt-4">
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+                        <!-- SELECTORES DE PERÍODO -->
+                        <div class="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 lg:space-x-6">
+                            <div class="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                                <label class="text-white text-xs sm:text-sm font-medium whitespace-nowrap">Período Principal:</label>
+                                
+                                <!-- Selector de períodos predefinidos -->
+                                <select id="period-selector" onchange="changePeriod()" 
+                                        class="bg-white text-gray-800 border border-gray-300 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-50 transition-all shadow-lg w-full sm:w-auto">
                                 
                                 <!-- Períodos Rápidos -->
                                 <optgroup label="⚡ Períodos Rápidos" style="color: #1f2937; font-weight: bold;">
@@ -1241,52 +1265,47 @@ const getHTML = () => {
                             </select>
                         </div>
                         
-                        <!-- Selector de período de comparación -->
-                        <div class="flex items-center space-x-3">
-                            <label class="text-white text-sm font-medium">Comparar vs:</label>
-                            
-                            <select id="comparison-period-selector" onchange="changeComparisonPeriod()" 
-                                    class="bg-white/90 text-gray-800 border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 hover:bg-gray-50 transition-all shadow-lg">
+                            <!-- Checkbox de comparación simplificado -->
+                            <div class="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                                <label class="flex items-center space-x-2 cursor-pointer bg-white/10 hover:bg-white/20 rounded-lg px-3 py-2 transition-all duration-200 border border-white/20">
+                                    <input type="checkbox" id="enable-comparison" onchange="toggleComparison()" checked
+                                           class="rounded border-gray-300 text-purple-600 focus:ring-purple-500 focus:ring-offset-0">
+                                    <span class="text-white text-xs sm:text-sm font-medium">
+                                        <i class="fas fa-chart-line mr-1"></i>
+                                        Activar comparación
+                                    </span>
+                                </label>
                                 
-                                <!-- Período Automático -->
-                                <optgroup label="🔄 Automático" style="color: #1f2937; font-weight: bold;">
-                                    <option value="auto" style="color: #1f2937; background: white;">📊 Período anterior equivalente</option>
-                                </optgroup>
-                                
-                                <!-- Períodos Específicos -->
-                                <optgroup label="📅 Períodos Específicos" style="color: #1f2937; font-weight: bold;">
-                                    <option value="august-2025" style="color: #1f2937; background: white;">📊 Agosto 2025</option>
-                                    <option value="september-2025" style="color: #1f2937; background: white;">📊 Septiembre 2025</option>
-                                    <option value="july-2025" style="color: #1f2937; background: white;">📊 Julio 2025</option>
-                                    <option value="june-2025" style="color: #1f2937; background: white;">📊 Junio 2025</option>
-                                    <option value="last-30-days" style="color: #1f2937; background: white;">📈 Últimos 30 días</option>
-                                    <option value="last-60-days" style="color: #1f2937; background: white;">📈 Últimos 60 días</option>
-                                </optgroup>
-                                
-                                <!-- Períodos Relativos -->
-                                <optgroup label="⏮️ Períodos Relativos" style="color: #1f2937; font-weight: bold;">
-                                    <option value="previous-month" style="color: #1f2937; background: white;">📆 Mes anterior</option>
-                                    <option value="previous-quarter" style="color: #1f2937; background: white;">📆 Trimestre anterior</option>
-                                    <option value="same-month-last-year" style="color: #1f2937; background: white;">📆 Mismo mes año anterior</option>
-                                </optgroup>
-                            </select>
+                                <!-- Indicador dinámico del período de comparación -->
+                                <div id="comparison-period-info" class="text-white text-xs bg-purple-500/20 px-3 py-2 rounded-lg border border-purple-400/30">
+                                    <i class="fas fa-arrows-alt-h mr-1"></i>
+                                    <span id="comparison-period-text">vs Período anterior equivalente</span>
+                                </div>
+                            </div>
+                        
                         </div>
                         
-                        <!-- Panel de fechas personalizado (oculto por defecto) -->
-                        <div id="custom-date-panel" class="hidden flex items-center space-x-2 bg-white/20 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/30">
-                            <label class="text-white text-xs font-medium">Desde:</label>
-                            <input type="date" id="start-date" class="bg-white text-gray-800 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            <label class="text-white text-xs font-medium">Hasta:</label>
-                            <input type="date" id="end-date" class="bg-white text-gray-800 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            <button onclick="applyCustomDates()" class="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600 transition-colors">
-                                <i class="fas fa-check mr-1"></i>Aplicar
-                            </button>
-                            <button onclick="cancelCustomDates()" class="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600 transition-colors">
-                                <i class="fas fa-times"></i>
-                            </button>
+                        <!-- Panel de fechas personalizado (oculto por defecto) - RESPONSIVE -->
+                        <div id="custom-date-panel" class="hidden flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 bg-white/20 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/30 mt-3 lg:mt-0">
+                            <div class="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                                <label class="text-white text-xs font-medium">Desde:</label>
+                                <input type="date" id="start-date" class="bg-white text-gray-800 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-full sm:w-auto">
+                                <label class="text-white text-xs font-medium">Hasta:</label>
+                                <input type="date" id="end-date" class="bg-white text-gray-800 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-full sm:w-auto">
+                            </div>
+                            <div class="flex space-x-2">
+                                <button onclick="applyCustomDates()" class="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600 transition-colors">
+                                    <i class="fas fa-check mr-1"></i>Aplicar
+                                </button>
+                                <button onclick="cancelCustomDates()" class="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600 transition-colors">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
                         </div>
                         
-                        <div class="flex items-center space-x-4">
+                        <!-- Controles de Estado y Usuario - Desktop -->
+                        <div class="hidden lg:flex items-center space-x-4">
+                        
                             <div class="flex items-center space-x-2">
                                 <div class="pulse-dot w-3 h-3 bg-green-400 rounded-full"></div>
                                 <span class="text-white text-sm font-medium">En vivo</span>
@@ -1298,7 +1317,7 @@ const getHTML = () => {
                                 <span id="comparison-label">Comparando vs período anterior</span>
                             </div>
                             
-                            <!-- User Info and Actions -->
+                            <!-- User Info and Actions - Desktop Only -->
                             <div class="flex items-center space-x-3 border-l border-white/20 pl-4">
                                 <div class="text-right">
                                     <p id="user-name" class="text-white text-sm font-medium">Usuario</p>
@@ -1908,7 +1927,7 @@ const getHTML = () => {
         // Variables globales
         let dashboardData = null;
         let activePeriod = 'august-september-2025';
-        let activeComparisonPeriod = 'auto';
+        let comparisonEnabled = true; // Simplificado: solo on/off
         let customDateRange = null;
 
         // Función para formatear números como moneda MXN
@@ -1935,20 +1954,80 @@ const getHTML = () => {
           } else {
             hideCustomDatePanel();
             activePeriod = selectedPeriod;
+            
+            // Actualizar texto de comparación
+            if (comparisonEnabled) {
+              updateComparisonPeriodText();
+            }
+            
             loadDashboard();
           }
         }
         
-        // Función para manejar cambio de período de comparación
-        function changeComparisonPeriod() {
-          const selector = document.getElementById('comparison-period-selector');
-          const selectedComparisonPeriod = selector.value;
+        // Función para activar/desactivar comparación
+        function toggleComparison() {
+          const checkbox = document.getElementById('enable-comparison');
+          const infoPanel = document.getElementById('comparison-period-info');
           
-          activeComparisonPeriod = selectedComparisonPeriod;
-          console.log('Período de comparación cambiado a:', selectedComparisonPeriod);
+          comparisonEnabled = checkbox.checked;
           
-          // Recargar dashboard con nueva comparación
+          if (comparisonEnabled) {
+            infoPanel.classList.remove('hidden');
+            updateComparisonPeriodText();
+          } else {
+            infoPanel.classList.add('hidden');
+          }
+          
+          console.log('Comparación:', comparisonEnabled ? 'activada' : 'desactivada');
+          
+          // Recargar dashboard
           loadDashboard();
+        }
+        
+        // Función para actualizar el texto del período de comparación
+        function updateComparisonPeriodText() {
+          const textElement = document.getElementById('comparison-period-text');
+          if (!textElement) return;
+          
+          let comparisonText = '';
+          
+          // Determinar qué período se está comparando basado en el período principal
+          switch (activePeriod) {
+            case 'today':
+              comparisonText = 'vs Ayer';
+              break;
+            case 'yesterday':
+              comparisonText = 'vs Anteayer';
+              break;
+            case 'last-7-days':
+              comparisonText = 'vs 7 días anteriores';
+              break;
+            case 'last-30-days':
+              comparisonText = 'vs 30 días anteriores';
+              break;
+            case 'this-month':
+              comparisonText = 'vs Mes anterior';
+              break;
+            case 'last-month':
+              comparisonText = 'vs 2 meses atrás';
+              break;
+            case 'august-2025':
+              comparisonText = 'vs Julio 2025';
+              break;
+            case 'september-2025':
+              comparisonText = 'vs Agosto 2025';
+              break;
+            case 'august-september-2025':
+              comparisonText = 'vs Junio-Julio 2025';
+              break;
+            case 'custom':
+              comparisonText = 'vs Período anterior equivalente';
+              break;
+            default:
+              comparisonText = 'vs Período anterior equivalente';
+          }
+          
+          textElement.textContent = comparisonText;
         }
 
         // Mostrar panel de fechas personalizadas
@@ -1986,6 +2065,12 @@ const getHTML = () => {
           customDateRange = { start: startDate, end: endDate };
           activePeriod = 'custom';
           hideCustomDatePanel();
+          
+          // Actualizar texto de comparación
+          if (comparisonEnabled) {
+            updateComparisonPeriodText();
+          }
+          
           loadDashboard();
         }
 
@@ -2068,9 +2153,9 @@ const getHTML = () => {
             const activeStatuses = getActiveStatuses();
             queryParams.set('status_filters', activeStatuses.join(','));
             
-            // Período de comparación
-            if (activeComparisonPeriod && activeComparisonPeriod !== 'auto') {
-              queryParams.set('comparison_period', activeComparisonPeriod);
+            // Período de comparación (simplificado)
+            if (comparisonEnabled) {
+              queryParams.set('comparison_period', 'auto'); // Siempre automático
             }
 
             console.log('Haciendo request a dashboard con params:', queryParams.toString());
@@ -2454,15 +2539,9 @@ const getHTML = () => {
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
           
           try {
-            const response = await fetch('/api/chat', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ message })
-            });
-            
-            const result = await response.json();
+            // Usar axios que ya tiene configurado el Authorization header
+            const response = await axios.post('/api/chat', { message });
+            const result = response.data;
             
             // Remover indicador de escritura
             messagesContainer.removeChild(typingIndicator);
@@ -2563,17 +2642,25 @@ const getHTML = () => {
             try {
               const user = JSON.parse(userInfo);
               
-              // Actualizar nombre del usuario en el header
+              // Actualizar nombre del usuario en ambos headers (desktop y móvil)
               const userNameElement = document.getElementById('user-name');
+              const userNameMobileElement = document.getElementById('user-name-mobile');
+              
               if (userNameElement) {
                 userNameElement.textContent = user.name || 'Usuario';
               }
+              if (userNameMobileElement) {
+                userNameMobileElement.textContent = user.name || 'Usuario';
+              }
               
-              // Mostrar botón de gestión de usuarios solo para administradores
+              // Mostrar botón de gestión de usuarios solo para administradores (desktop y móvil)
               const adminBtn = document.getElementById('admin-users-btn');
-              if (adminBtn && user.role === 'admin') {
-                adminBtn.classList.remove('hidden');
-                console.log('Botón de administración mostrado para:', user.name);
+              const adminBtnMobile = document.getElementById('admin-users-btn-mobile');
+              
+              if (user.role === 'admin') {
+                if (adminBtn) adminBtn.classList.remove('hidden');
+                if (adminBtnMobile) adminBtnMobile.classList.remove('hidden');
+                console.log('Botones de administración mostrados para:', user.name);
               }
               
               console.log('Usuario inicializado:', user.name, 'Role:', user.role);
@@ -2603,10 +2690,11 @@ const getHTML = () => {
           // Inicializar información del usuario
           initializeUserInfo();
           
-          // Inicializar selector de período de comparación
-          const comparisonSelector = document.getElementById('comparison-period-selector');
-          if (comparisonSelector) {
-            comparisonSelector.value = activeComparisonPeriod;
+          // Inicializar checkbox de comparación y texto
+          const comparisonCheckbox = document.getElementById('enable-comparison');
+          if (comparisonCheckbox) {
+            comparisonCheckbox.checked = comparisonEnabled;
+            updateComparisonPeriodText();
           }
           
           // Intentar cargar dashboard directamente
