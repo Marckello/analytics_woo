@@ -250,14 +250,28 @@ const testConnection = async () => {
     console.log(`📊 Agosto: ${countAgo.rows[0].count} registros`);
     console.log(`📊 TOTAL: ${parseInt(countSept.rows[0].count) + parseInt(countAgo.rows[0].count)} registros`);
     
-    // Mostrar muestras de cada tabla
-    const diagnosticQuery = `
-      SELECT *, 'septiembre' as table_source FROM reporte_envios_sept25 ORDER BY created_at DESC LIMIT 2
-      UNION ALL
-      SELECT *, 'agosto' as table_source FROM reporte_envios_ago25 ORDER BY created_at DESC LIMIT 2
-    `;
+    // Mostrar muestras de septiembre
+    const septQuery = `SELECT * FROM reporte_envios_sept25 ORDER BY created_at DESC LIMIT 2`;
+    const septResult = await pool.query(septQuery);
     
-    const diagnosticResult = await pool.query(diagnosticQuery);
+    console.log('📋 MUESTRA SEPTIEMBRE:');
+    if (septResult.rows.length > 0) {
+      const columns = Object.keys(septResult.rows[0]);
+      console.log(`🔍 Columnas Septiembre: ${columns.join(', ')}`);
+    }
+    
+    // Mostrar muestras de agosto  
+    const agoQuery = `SELECT * FROM reporte_envios_ago25 ORDER BY created_at DESC LIMIT 2`;
+    const agoResult = await pool.query(agoQuery);
+    
+    console.log('📋 MUESTRA AGOSTO:');
+    if (agoResult.rows.length > 0) {
+      const columns = Object.keys(agoResult.rows[0]);
+      console.log(`🔍 Columnas Agosto: ${columns.join(', ')}`);
+    }
+    
+    // Usar septiembre para el diagnóstico detallado
+    const diagnosticResult = septResult;
     
     console.log('📋 TODAS LAS COLUMNAS DISPONIBLES:');
     if (diagnosticResult.rows.length > 0) {

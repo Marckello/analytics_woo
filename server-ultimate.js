@@ -4908,8 +4908,22 @@ const initializeServer = async () => {
   
   // Inicializar Google Analytics 4
   console.log('🔧 Inicializando Google Analytics 4...');
-  const ga4Client = initializeGA4Client();
-  const ga4Connected = ga4Client ? await testGA4Connection() : false;
+  let ga4Client = null;
+  let ga4Connected = false;
+  
+  try {
+    ga4Client = initializeGA4Client();
+    console.log('🔍 GA4 Client Result:', ga4Client ? 'Inicializado' : 'NULL');
+    
+    if (ga4Client) {
+      ga4Connected = await testGA4Connection();
+    } else {
+      console.log('❌ GA4: Cliente retornó NULL - revisar credenciales');
+    }
+  } catch (error) {
+    console.error('❌ Error inicializando GA4:', error.message);
+    console.error('❌ GA4 Error stack:', error.stack);
+  }
   
   const PORT = process.env.PORT || 3001;
   server.listen(PORT, '0.0.0.0', () => {
