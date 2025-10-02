@@ -16,14 +16,16 @@ const pool = new Pool({
 // Función para obtener datos de envíos por order_id
 const getShippingDataByOrderId = async (orderId) => {
   try {
-    // Consulta mejorada - buscar por múltiples criterios
+    console.log(`🔍 Buscando orden ${orderId} en PostgreSQL tabla reporte_envios_sept25...`);
+    
+    // Consulta con mejor diagnóstico
     const query = `
       SELECT 
         tracking,
         tracking_number,
-        status_verbose,
+        status,
         name as carrier,
-        service_verbose,
+        service,
         created_at,
         shipped_at,
         -- Buscar costo en múltiples columnas posibles
@@ -32,43 +34,50 @@ const getShippingDataByOrderId = async (orderId) => {
           CAST(price AS NUMERIC), 
           CAST(total AS NUMERIC),
           CAST(amount AS NUMERIC),
-          127.0  -- Valor por defecto si no hay costo específico
+          0  -- Cambio: 0 en lugar de 127 para debug
         ) as total_cost
       FROM reporte_envios_sept25 
       WHERE 
-        tracking LIKE $1 
-        OR tracking_number LIKE $1 
-        OR CAST(tracking AS TEXT) = $2
-        OR CAST(tracking_number AS TEXT) = $2
+        CAST(tracking AS TEXT) = $1
+        OR CAST(tracking_number AS TEXT) = $1
+        OR tracking LIKE $2 
+        OR tracking_number LIKE $2
       ORDER BY created_at DESC
       LIMIT 1
     `;
     
-    const result = await pool.query(query, [`%${orderId}%`, orderId.toString()]);
+    const result = await pool.query(query, [orderId.toString(), `%${orderId}%`]);
+    
+    console.log(`🔍 PostgreSQL query result: ${result.rows.length} filas encontradas para orden ${orderId}`);
     
     if (result.rows.length > 0) {
       const shipment = result.rows[0];
-      const calculatedCost = parseFloat(shipment.total_cost) || 127;
+      const calculatedCost = parseFloat(shipment.total_cost) || 0;
       
-      console.log(`📦 PostgreSQL encontró envío: Orden ${orderId} = $${calculatedCost} MXN (${shipment.carrier})`);
+      console.log(`✅ PostgreSQL MATCH: Orden ${orderId}`);
+      console.log(`   - tracking: "${shipment.tracking}"`); 
+      console.log(`   - tracking_number: "${shipment.tracking_number}"`);
+      console.log(`   - carrier: "${shipment.carrier}"`);
+      console.log(`   - cost: $${calculatedCost}`);
       
       return {
         found: true,
         cost: calculatedCost,
-        carrier: shipment.carrier || 'Estafeta/DHL',
-        service: shipment.service_verbose || 'Ground Standard',
+        carrier: shipment.carrier || 'Unknown',
+        service: shipment.service || 'Ground Standard',
         tracking_number: shipment.tracking_number,
-        status: shipment.status_verbose || 'Shipped',
+        status: shipment.status || 'Shipped',
         created_at: shipment.created_at,
         shipped_at: shipment.shipped_at,
         source: 'postgresql_database'
       };
     }
     
+    console.log(`❌ PostgreSQL NO MATCH: Orden ${orderId} no encontrada`);
     return { 
       found: false, 
       cost: 0, 
-      message: `Orden ${orderId} no encontrada en base de datos PostgreSQL`, 
+      message: `Orden ${orderId} no encontrada en PostgreSQL`, 
       source: 'not_in_database' 
     };
     
@@ -188,11 +197,34 @@ const getBulkShippingCosts = async (orderIds) => {
   }
 };
 
-// Función para probar la conexión
+// Función para probar la conexión y diagnosticar datos
 const testConnection = async () => {
   try {
     const result = await pool.query('SELECT NOW() as current_time, version() as pg_version');
     console.log('✅ PostgreSQL connection successful:', result.rows[0]);
+    
+    // DIAGNÓSTICO: Ver qué datos hay en la tabla
+    const diagnosticQuery = `
+      SELECT 
+        tracking, 
+        tracking_number, 
+        name, 
+        status,
+        created_at,
+        COUNT(*) OVER() as total_records
+      FROM reporte_envios_sept25 
+      ORDER BY created_at DESC 
+      LIMIT 5
+    `;
+    
+    const diagnosticResult = await pool.query(diagnosticQuery);
+    console.log('🔍 DIAGNÓSTICO PostgreSQL - Primeros 5 registros:');
+    console.log('📊 Total registros en tabla:', diagnosticResult.rows[0]?.total_records || 0);
+    
+    diagnosticResult.rows.forEach((row, index) => {
+      console.log(`${index + 1}. tracking: "${row.tracking}", tracking_number: "${row.tracking_number}", name: "${row.name}"`);
+    });
+    
     return true;
   } catch (error) {
     console.error('❌ PostgreSQL connection failed:', error.message);
