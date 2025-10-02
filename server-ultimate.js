@@ -39,6 +39,8 @@ const getWooCommerceAuth = () => {
 const wooCache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
+
+
 // Función para obtener datos de WooCommerce con caché
 const fetchWooCommerceData = async (endpoint, params = '') => {
   const cacheKey = `${endpoint}?${params}`;
@@ -54,6 +56,7 @@ const fetchWooCommerceData = async (endpoint, params = '') => {
   
   try {
     console.log(`🌐 Fetching from WooCommerce: ${endpoint}`);
+
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: getWooCommerceAuth()
@@ -161,9 +164,9 @@ const queryOpenAI = async (prompt, context) => {
 
 🇲🇽 INFORMACIÓN TEMPORAL (ZONA HORARIA MÉXICO):
 - Fecha y hora actual: ${currentDate}, ${currentTime}
-- Año actual: 2024 (cambiando a octubre)
-- Zona horaria: America/Mexico_City (GMT-6)
-- Datos disponibles: AGOSTO-SEPTIEMBRE 2025 y OCTUBRE 2024
+- Año actual: 2025 (octubre actual)
+- Zona horaria: America/Mexico_City (GMT-6)  
+- Datos disponibles: AGOSTO-SEPTIEMBRE-OCTUBRE 2025
 
 📊 DATOS DISPONIBLES:
 ${context}${dateContext}
@@ -172,7 +175,7 @@ ${context}${dateContext}
 - "HOY" = ${mexicoNow.toLocaleDateString('es-MX')} (busca datos de esta fecha exacta)
 - "AYER" = ${new Date(mexicoNow.getTime() - 24*60*60*1000).toLocaleDateString('es-MX')}
 - "EL MARTES/LUNES/etc." = El último día de esa semana dentro del período disponible
-- Si preguntan por fechas fuera de agosto-septiembre 2025 u octubre 2024, explica limitaciones
+- Si preguntan por fechas fuera de agosto-septiembre-octubre 2025, explica limitaciones
 - Si no hay datos de la fecha específica, sugiere la fecha más cercana con datos
 
 📋 FORMATO DE RESPUESTA OBLIGATORIO (MUY IMPORTANTE):
@@ -288,16 +291,16 @@ const calculateComparisonPeriod = (comparisonPeriodParam, currentStartDate, curr
         endDate: '2025-06-30T23:59:59.000Z'
       };
       
-    case 'october-2024':
+    case 'october-2025':
       return {
-        startDate: '2024-10-01T00:00:00.000Z',
-        endDate: '2024-10-31T23:59:59.000Z'
+        startDate: '2025-10-01T00:00:00.000Z',
+        endDate: '2025-10-31T23:59:59.000Z'
       };
       
-    case 'september-2024':
+    case 'september-2025':
       return {
-        startDate: '2024-09-01T00:00:00.000Z',
-        endDate: '2024-09-30T23:59:59.000Z'
+        startDate: '2025-09-01T00:00:00.000Z',
+        endDate: '2025-09-30T23:59:59.000Z'
       };
       
     case 'last-30-days':
@@ -371,6 +374,8 @@ const handleDashboard = async (query) => {
     const customStartDate = query.start_date;
     const customEndDate = query.end_date;
     
+
+    
     let startDate, endDate, periodLabel;
     
     // Si hay fechas personalizadas, usarlas
@@ -393,10 +398,10 @@ const handleDashboard = async (query) => {
     } else {
       // Mapear períodos predefinidos a fechas
       switch(periodParam) {
-      case 'october-2024':
-        startDate = new Date('2024-10-01T00:00:00Z').toISOString();
-        endDate = new Date('2024-10-31T23:59:59Z').toISOString();
-        periodLabel = 'Octubre 2024';
+      case 'october-2025':
+        startDate = new Date('2025-10-01T00:00:00Z').toISOString();
+        endDate = new Date('2025-10-31T23:59:59Z').toISOString();
+        periodLabel = 'Octubre 2025';
         break;
       case 'september-2025':
         startDate = new Date('2025-09-01T00:00:00Z').toISOString();
@@ -486,6 +491,7 @@ const handleDashboard = async (query) => {
     }
     
     console.log(`📊 Total órdenes obtenidas: ${allOrders.length} para el período ${periodLabel}`);
+
     
     // FILTRAR por estados seleccionados por el usuario
     const statusFilters = query.status_filters;
@@ -1143,7 +1149,7 @@ const handleChat = async (message) => {
       const date = new Date(o.date_created);
       const month = date.getMonth();  
       const year = date.getFullYear();
-      return year === 2024 && month === 9; // Octubre = mes 9 (0-indexed)
+      return year === 2025 && month === 9; // Octubre = mes 9 (0-indexed)
     });
     
     const augustSales = augustOrders.reduce((sum, o) => sum + parseFloat(o.total), 0);
@@ -1213,7 +1219,7 @@ const handleChat = async (message) => {
     - Ticket promedio: $${septemberOrders.length > 0 ? (septemberSales/septemberOrders.length).toLocaleString('es-MX', {minimumFractionDigits: 2}) : '0.00'} MXN
     ${septemberOrders.length > 0 ? `- Orden más alta septiembre: $${Math.max(...septemberOrders.map((o) => parseFloat(o.total))).toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN` : ''}
     
-    📊 OCTUBRE 2024:
+    📊 OCTUBRE 2025:
     - Órdenes completadas: ${octoberOrders.length}  
     - Ventas totales: $${octoberSales.toLocaleString('es-MX', {minimumFractionDigits: 2})} MXN
     - Ticket promedio: $${octoberOrders.length > 0 ? (octoberSales/octoberOrders.length).toLocaleString('es-MX', {minimumFractionDigits: 2}) : '0.00'} MXN
@@ -1390,7 +1396,7 @@ const getHTML = () => {
                                 
                                 <!-- Períodos Específicos de Adaptoheal -->
                                 <optgroup label="🏥 Períodos Adaptoheal" style="color: #1f2937; font-weight: bold;">
-                                    <option value="october-2024" style="color: #1f2937; background: white;">🎯 Octubre 2024</option>
+                                    <option value="october-2025" style="color: #1f2937; background: white;">🎯 Octubre 2025</option>
                                     <option value="august-2025" style="color: #1f2937; background: white;">🎯 Agosto 2025</option>
                                     <option value="september-2025" style="color: #1f2937; background: white;">🎯 Septiembre 2025</option>
                                     <option value="august-september-2025" selected style="color: #1f2937; background: white;">📊 Agosto - Septiembre 2025</option>
@@ -2211,8 +2217,8 @@ const getHTML = () => {
             case 'last-month':
               comparisonText = 'vs 2 meses atrás';
               break;
-            case 'october-2024':
-              comparisonText = 'vs Septiembre 2024';
+            case 'october-2025':
+              comparisonText = 'vs Septiembre 2025';
               break;
             case 'august-2025':
               comparisonText = 'vs Julio 2025';
@@ -2535,8 +2541,8 @@ const getHTML = () => {
             case 'auto':
               labelText = 'vs período anterior equivalente';
               break;
-            case 'october-2024':
-              labelText = 'vs Octubre 2024';
+            case 'october-2025':
+              labelText = 'vs Octubre 2025';
               break;
             case 'august-2025':
               labelText = 'vs Agosto 2025';
@@ -2743,8 +2749,8 @@ const getHTML = () => {
           
           // Mapear los valores del selector a labels amigables
           switch(selectedPeriod) {
-            case 'october-2024':
-              periodLabel = 'Octubre 2024';
+            case 'october-2025':
+              periodLabel = 'Octubre 2025';
               break;
             case 'august-september-2025':
               periodLabel = 'Agosto - Septiembre 2025';
