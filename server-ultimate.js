@@ -2070,7 +2070,7 @@ const getHTML = () => {
                                     </div>
                                     <div>
                                         <h2 class="text-xl font-bold text-gray-800">Top 5 Productos</h2>
-                                        <p id="products-period-label" class="text-sm text-gray-500">Más vendidos</p>
+                                        <p id="products-period-label" class="text-sm text-gray-500">Por unidades vendidas</p>
                                     </div>
                                 </div>
                                 <div class="text-right">
@@ -2687,7 +2687,7 @@ const getHTML = () => {
                 </div>
               </div>
               <div class="text-right">
-                <p class="text-sm font-bold text-yellow-700">\${product.quantity} ventas</p>
+                <p class="text-sm font-bold text-yellow-700">\${product.quantity} unidades</p>
                 <p class="text-xs text-gray-500">\${formatCurrency(product.totalSales)} • \${product.percentage}%</p>
                 <p class="text-xs text-gray-500">ID: \${product.id}</p>
               </div>
