@@ -173,21 +173,18 @@
                     </div>
                     
                     <div class="bg-purple-50 p-4 rounded-lg">
-                        <h4 class="font-semibold text-purple-800 mb-2">📈 Carriers Principales</h4>
-                        <div class="text-sm">
-                            ${(shippingData.carriers || []).slice(0, 3).map(carrier => 
-                                `<div class="flex justify-between">
-                                    <span>${carrier.name}</span>
-                                    <span class="font-semibold">$${carrier.totalCost.toFixed(0)}</span>
-                                </div>`
-                            ).join('') || '<p class="text-gray-500">No hay datos</p>'}
-                        </div>
+                        <h4 class="font-semibold text-purple-800 mb-2">🆓 Cupones "Envío Gratis"</h4>
+                        <p class="text-2xl font-bold text-purple-600">$${data.freeShippingCoupons?.totalRealCost?.toLocaleString() || '0'}</p>
+                        <p class="text-sm text-gray-600">${data.freeShippingCoupons?.totalOrders || 0} órdenes "gratis"</p>
+                        <p class="text-xs text-gray-500">Costo real absorbido</p>
                     </div>
                 `;
                 
                 addLog('✅ Dashboard actualizado con costos de envío reales', 'success');
                 addLog(`📊 Total real de envíos: $${shippingData.totalRealCost?.toFixed(2) || '0'}`, 'info');
                 addLog(`🎯 Cobertura de datos: ${shippingData.summary?.coveragePercentage || 0}%`, 'info');
+                addLog(`🆓 Cupones envío gratis cuestan: $${data.freeShippingCoupons?.totalRealCost?.toFixed(2) || '0'}`, 'warning');
+                addLog(`💸 ${data.freeShippingCoupons?.totalOrders || 0} órdenes "gratis" = $${data.freeShippingCoupons?.avgCostPerOrder?.toFixed(2) || 0} promedio`, 'warning');
                 
             } catch (error) {
                 const errorMsg = error.response?.data || error.message;

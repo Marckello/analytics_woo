@@ -1145,11 +1145,28 @@ const handleDashboard = async (query) => {
     let totalCouponsAmount = 0;
     let totalCouponsOrders = 0;
     
+    // ================================
+    // NUEVO: ANÁLISIS DE CUPONES DE ENVÍO GRATIS
+    // ================================
+    const freeShippingCoupons = {
+      totalRealCost: 0,
+      totalOrders: 0,
+      coupons: {},
+      details: []
+    };
+    
+    // Lista de códigos de cupones que indican envío gratis
+    const freeShippingCodes = ['enviodist', 'envío gratis', 'envio gratis', 'guiapropia', 'free_shipping'];
+    
     try {
       // Procesar cupones desde las órdenes
       orders.forEach((order) => {
         if (order.coupon_lines && Array.isArray(order.coupon_lines) && order.coupon_lines.length > 0) {
           totalCouponsOrders++;
+          
+          // Verificar si esta orden tiene cupones de envío gratis
+          let hasFreeShippingCoupon = false;
+          let freeShippingCouponCodes = [];
           
           order.coupon_lines.forEach((couponLine) => {
             const couponCode = couponLine.code || 'Cupón sin código';
@@ -1167,7 +1184,49 @@ const handleDashboard = async (query) => {
             couponsStats[couponCode].totalDiscount += discountAmount;
             couponsStats[couponCode].orders.add(order.id);
             totalCouponsAmount += discountAmount;
+            
+            // Verificar si es un cupón de envío gratis
+            if (freeShippingCodes.some(code => couponCode.toLowerCase().includes(code.toLowerCase()))) {
+              hasFreeShippingCoupon = true;
+              freeShippingCouponCodes.push(couponCode);
+            }
           });
+          
+          // Si tiene cupón de envío gratis, calcular el costo real que absorbiste
+          if (hasFreeShippingCoupon) {
+            const orderIdStr = order.id.toString();
+            const mapping = loadEnviaOrderMapping();
+            
+            if (mapping[orderIdStr]) {
+              const realShippingCost = mapping[orderIdStr].total_cost;
+              freeShippingCoupons.totalRealCost += realShippingCost;
+              freeShippingCoupons.totalOrders++;
+              
+              // Registrar por código de cupón
+              freeShippingCouponCodes.forEach(couponCode => {
+                if (!freeShippingCoupons.coupons[couponCode]) {
+                  freeShippingCoupons.coupons[couponCode] = {
+                    code: couponCode,
+                    totalRealCost: 0,
+                    ordersCount: 0,
+                    avgCostPerOrder: 0
+                  };
+                }
+                freeShippingCoupons.coupons[couponCode].totalRealCost += realShippingCost;
+                freeShippingCoupons.coupons[couponCode].ordersCount++;
+              });
+              
+              freeShippingCoupons.details.push({
+                orderId: order.id,
+                couponCodes: freeShippingCouponCodes,
+                realCost: realShippingCost,
+                customerEmail: order.billing.email,
+                orderTotal: parseFloat(order.total)
+              });
+              
+              console.log(`🆓➡️💰 Orden ${order.id}: Cupón envío gratis (${freeShippingCouponCodes.join(', ')}) = Costo real $${realShippingCost}`);
+            }
+          }
         }
       });
       
@@ -1181,7 +1240,16 @@ const handleDashboard = async (query) => {
         delete couponsStats[code].orders; // Limpiar el Set
       });
       
+      // Calcular promedios para cupones de envío gratis
+      Object.values(freeShippingCoupons.coupons).forEach(coupon => {
+        coupon.avgCostPerOrder = coupon.ordersCount > 0 ? coupon.totalRealCost / coupon.ordersCount : 0;
+      });
+      
       console.log(`Cupones procesados: ${Object.keys(couponsStats).length} cupones únicos, ${totalCouponsOrders} órdenes con cupón, $${totalCouponsAmount} total descontado`);
+      console.log(`🆓📦 Análisis de cupones de envío gratis:`);
+      console.log(`   - Órdenes con envío gratis: ${freeShippingCoupons.totalOrders}`);
+      console.log(`   - Costo real absorbido: $${freeShippingCoupons.totalRealCost.toFixed(2)} MXN`);
+      console.log(`   - Promedio por orden gratis: $${freeShippingCoupons.totalOrders > 0 ? (freeShippingCoupons.totalRealCost / freeShippingCoupons.totalOrders).toFixed(2) : 0} MXN`);
       
     } catch (error) {
       console.error('Error procesando cupones:', error);
@@ -1283,6 +1351,20 @@ const handleDashboard = async (query) => {
             avgDiscountPerOrder: totalCouponsOrders > 0 ? totalCouponsAmount / totalCouponsOrders : 0,
             percentageOfTotalSales: totalSales > 0 ? (totalCouponsAmount / totalSales * 100).toFixed(1) : '0'
           }
+        },
+        
+        // NUEVO: COSTO REAL DE CUPONES DE ENVÍO GRATIS
+        freeShippingCoupons: {
+          totalRealCost: freeShippingCoupons.totalRealCost,
+          totalOrders: freeShippingCoupons.totalOrders,
+          avgCostPerOrder: freeShippingCoupons.totalOrders > 0 ? freeShippingCoupons.totalRealCost / freeShippingCoupons.totalOrders : 0,
+          couponsBreakdown: Object.values(freeShippingCoupons.coupons).sort((a, b) => b.totalRealCost - a.totalRealCost),
+          summary: {
+            percentageOfTotalSales: totalSales > 0 ? (freeShippingCoupons.totalRealCost / totalSales * 100).toFixed(2) : '0',
+            percentageOfShippingCosts: shippingStats.totalRealCost > 0 ? (freeShippingCoupons.totalRealCost / shippingStats.totalRealCost * 100).toFixed(1) : '0',
+            avgDiscountGiven: freeShippingCoupons.totalOrders > 0 ? (freeShippingCoupons.totalRealCost / freeShippingCoupons.totalOrders).toFixed(2) : '0'
+          },
+          topFreeShippingOrders: freeShippingCoupons.details.sort((a, b) => b.realCost - a.realCost).slice(0, 5)
         },
         
         // NUEVO: COSTOS DE ENVÍO REALES DESDE ENVIA.COM
