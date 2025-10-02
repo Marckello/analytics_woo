@@ -445,11 +445,30 @@ const handleDashboard = async (query) => {
       }
     }
     
-    // OBTENER TODAS LAS ÓRDENES y filtrar solo estados exitosos (reducido para velocidad)
-    const allOrders = await fetchWooCommerceData(
-      'orders', 
-      `after=${startDate}&before=${endDate}&per_page=50`
-    );
+    // OBTENER TODAS LAS ÓRDENES - Con paginación para datos completos
+    let allOrders = [];
+    let page = 1;
+    let hasMoreOrders = true;
+    
+    while (hasMoreOrders) {
+      const orders = await fetchWooCommerceData(
+        'orders', 
+        `after=${startDate}&before=${endDate}&per_page=100&page=${page}`
+      );
+      
+      if (orders && orders.length > 0) {
+        allOrders = allOrders.concat(orders);
+        page++;
+        // Si obtenemos menos de 100 órdenes, ya no hay más páginas
+        if (orders.length < 100) {
+          hasMoreOrders = false;
+        }
+      } else {
+        hasMoreOrders = false;
+      }
+    }
+    
+    console.log(`📊 Total órdenes obtenidas: ${allOrders.length} para el período ${periodLabel}`);
     
     // FILTRAR por estados seleccionados por el usuario
     const statusFilters = query.status_filters;
