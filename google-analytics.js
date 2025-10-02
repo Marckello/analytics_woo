@@ -10,14 +10,22 @@ let analyticsDataClient;
 // Inicializar cliente GA4
 const initializeGA4Client = () => {
   try {
+    console.log('🔧 Inicializando cliente GA4...');
+    console.log('🔍 Property ID configurado:', GA4_PROPERTY_ID);
+    
     // Verificar si las credenciales están configuradas
     if (!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-      console.log('⚠️ GA4: Credenciales no configuradas - funcionalidad deshabilitada');
+      console.log('⚠️ GA4: Variable GOOGLE_APPLICATION_CREDENTIALS_JSON no encontrada');
       return null;
     }
 
+    console.log('✅ GA4: Variable de credenciales encontrada, parseando...');
+    
     // Parsear credenciales JSON desde variable de entorno
     const credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+    
+    console.log('✅ GA4: Credenciales parseadas - Project ID:', credentials.project_id);
+    console.log('✅ GA4: Client Email:', credentials.client_email);
     
     analyticsDataClient = new BetaAnalyticsDataClient({
       credentials: credentials,
@@ -34,17 +42,20 @@ const initializeGA4Client = () => {
 
 // Función para obtener usuarios totales y nuevos usuarios
 const getUsersData = async (dateRange = 7) => {
+  console.log(`🔍 getUsersData: Iniciando consulta para ${dateRange} días...`);
+  
   if (!analyticsDataClient) {
-    console.log('⚠️ GA4 no disponible - retornando datos de prueba');
+    console.log('❌ GA4: Cliente no inicializado - retornando datos vacíos');
     return {
       totalUsers: 0,
       newUsers: 0,
       returningUsers: 0,
-      error: 'GA4 no configurado'
+      error: 'GA4 cliente no inicializado'
     };
   }
 
   try {
+    console.log(`📊 GA4: Haciendo consulta a property ${GA4_PROPERTY_ID} para ${dateRange} días...`);
     const [response] = await analyticsDataClient.runReport({
       property: `properties/${GA4_PROPERTY_ID}`,
       dateRanges: [
@@ -311,16 +322,24 @@ const getGA4Insights = async (dateRange = 7) => {
 // Función para probar la conexión GA4
 const testGA4Connection = async () => {
   try {
+    console.log('🔧 GA4: Probando conexión...');
+    
     if (!analyticsDataClient) {
-      console.log('⚠️ GA4: Cliente no inicializado');
+      console.log('❌ GA4: Cliente no inicializado durante test');
       return false;
     }
 
+    console.log('✅ GA4: Cliente inicializado, probando consulta básica...');
     const testData = await getUsersData(1); // Solo último día
-    console.log('✅ GA4 Connection Test:', testData);
-    return testData.totalUsers !== undefined;
+    console.log('📊 GA4 Connection Test Result:', testData);
+    
+    const hasData = testData.totalUsers !== undefined && !testData.error;
+    console.log(`🎯 GA4 Connection Status: ${hasData ? '✅ CONECTADO' : '❌ SIN DATOS'}`);
+    
+    return hasData;
   } catch (error) {
     console.error('❌ GA4 Connection Test failed:', error.message);
+    console.error('❌ GA4 Error details:', error);
     return false;
   }
 };
