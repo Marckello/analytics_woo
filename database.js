@@ -34,7 +34,7 @@ const getShippingDataByOrderId = async (orderId) => {
           CAST(amount AS NUMERIC),
           127.0  -- Valor por defecto si no hay costo específico
         ) as total_cost
-      FROM reporte_envios_sep25 
+      FROM reporte_envios_sept25 
       WHERE 
         tracking LIKE $1 
         OR tracking_number LIKE $1 
@@ -94,7 +94,7 @@ const getShippingStats = async () => {
         SUM(COALESCE(cost, 0)) as total_cost,
         MIN(created_at) as first_shipment,
         MAX(created_at) as last_shipment
-      FROM reporte_envios_sep25
+      FROM reporte_envios_sept25
     `;
     
     const result = await pool.query(query);
@@ -116,7 +116,7 @@ const getAllShipments = async (limit = 10) => {
         status_verbose,
         created_at,
         COALESCE(cost, 0) as total_cost
-      FROM reporte_envios_sep25 
+      FROM reporte_envios_sept25 
       ORDER BY created_at DESC 
       LIMIT $1
     `;
@@ -154,7 +154,7 @@ const getBulkShippingCosts = async (orderIds) => {
           127.0
         ) as total_cost,
         created_at
-      FROM reporte_envios_sep25 
+      FROM reporte_envios_sept25 
       WHERE 
         tracking = ANY($1::text[])
         OR tracking_number = ANY($1::text[])
