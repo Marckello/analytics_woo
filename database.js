@@ -18,29 +18,27 @@ const getShippingDataByOrderId = async (orderId) => {
   try {
     console.log(`🔍 Buscando orden ${orderId} en PostgreSQL tabla reporte_envios_sept25...`);
     
-    // Consulta con mejor diagnóstico
+    // Consulta corregida - usar columnas que existen realmente
     const query = `
       SELECT 
-        tracking,
         tracking_number,
         status,
         name as carrier,
         service,
         created_at,
         shipped_at,
-        -- Buscar costo en múltiples columnas posibles
+        delivered_at,
+        -- Buscar costo en múltiples columnas posibles  
         COALESCE(
           CAST(cost AS NUMERIC), 
           CAST(price AS NUMERIC), 
           CAST(total AS NUMERIC),
           CAST(amount AS NUMERIC),
-          0  -- Cambio: 0 en lugar de 127 para debug
+          0
         ) as total_cost
       FROM reporte_envios_sept25 
       WHERE 
-        CAST(tracking AS TEXT) = $1
-        OR CAST(tracking_number AS TEXT) = $1
-        OR tracking LIKE $2 
+        CAST(tracking_number AS TEXT) = $1
         OR tracking_number LIKE $2
       ORDER BY created_at DESC
       LIMIT 1
@@ -55,9 +53,9 @@ const getShippingDataByOrderId = async (orderId) => {
       const calculatedCost = parseFloat(shipment.total_cost) || 0;
       
       console.log(`✅ PostgreSQL MATCH: Orden ${orderId}`);
-      console.log(`   - tracking: "${shipment.tracking}"`); 
       console.log(`   - tracking_number: "${shipment.tracking_number}"`);
       console.log(`   - carrier: "${shipment.carrier}"`);
+      console.log(`   - service: "${shipment.service}"`);
       console.log(`   - cost: $${calculatedCost}`);
       
       return {
@@ -119,10 +117,9 @@ const getAllShipments = async (limit = 10) => {
   try {
     const query = `
       SELECT 
-        tracking,
         tracking_number,
         name as carrier,
-        status_verbose,
+        status,
         created_at,
         COALESCE(cost, 0) as total_cost
       FROM reporte_envios_sept25 
@@ -150,7 +147,7 @@ const getBulkShippingCosts = async (orderIds) => {
     
     const query = `
       SELECT 
-        CAST(tracking AS TEXT) as order_id,
+        CAST(tracking_number AS TEXT) as order_id,
         CAST(tracking_number AS TEXT) as tracking_number,
         name as carrier,
         service_verbose,
@@ -165,8 +162,7 @@ const getBulkShippingCosts = async (orderIds) => {
         created_at
       FROM reporte_envios_sept25 
       WHERE 
-        tracking = ANY($1::text[])
-        OR tracking_number = ANY($1::text[])
+        tracking_number = ANY($1::text[])
       ORDER BY created_at DESC
     `;
     
@@ -175,7 +171,7 @@ const getBulkShippingCosts = async (orderIds) => {
     // Crear mapa de resultados
     const costsMap = {};
     result.rows.forEach(row => {
-      const orderId = row.order_id || row.tracking_number;
+      const orderId = row.order_id;
       if (orderId) {
         costsMap[orderId] = {
           cost: parseFloat(row.total_cost) || 127,
@@ -203,13 +199,13 @@ const testConnection = async () => {
     const result = await pool.query('SELECT NOW() as current_time, version() as pg_version');
     console.log('✅ PostgreSQL connection successful:', result.rows[0]);
     
-    // DIAGNÓSTICO: Ver qué datos hay en la tabla
+    // DIAGNÓSTICO: Ver qué datos hay en la tabla (columnas correctas)
     const diagnosticQuery = `
       SELECT 
-        tracking, 
         tracking_number, 
         name, 
         status,
+        service,
         created_at,
         COUNT(*) OVER() as total_records
       FROM reporte_envios_sept25 
@@ -222,7 +218,7 @@ const testConnection = async () => {
     console.log('📊 Total registros en tabla:', diagnosticResult.rows[0]?.total_records || 0);
     
     diagnosticResult.rows.forEach((row, index) => {
-      console.log(`${index + 1}. tracking: "${row.tracking}", tracking_number: "${row.tracking_number}", name: "${row.name}"`);
+      console.log(`${index + 1}. tracking_number: "${row.tracking_number}", name: "${row.name}", service: "${row.service}"`);
     });
     
     return true;
