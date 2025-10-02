@@ -16,9 +16,9 @@ const pool = new Pool({
 // Función para obtener datos de envíos por order_id
 const getShippingDataByOrderId = async (orderId) => {
   try {
-    console.log(`🔍 Buscando orden ${orderId} en PostgreSQL tabla reporte_envios_sept25...`);
+    console.log(`🔍 Buscando orden ${orderId} en PostgreSQL tablas agosto y septiembre...`);
     
-    // Consulta corregida - usar order_number que SÍ coincide con WooCommerce
+    // BUSCAR EN AMBAS TABLAS: Agosto y Septiembre
     const query = `
       SELECT 
         order_number,
@@ -29,11 +29,27 @@ const getShippingDataByOrderId = async (orderId) => {
         created_at,
         shipped_at,
         delivered_at,
-        -- Usar columna total que SÍ existe en PostgreSQL
-        CAST(total AS NUMERIC) as total_cost
+        CAST(total AS NUMERIC) as total_cost,
+        'septiembre' as table_source
       FROM reporte_envios_sept25 
-      WHERE 
-        CAST(order_number AS TEXT) = $1
+      WHERE CAST(order_number AS TEXT) = $1
+      
+      UNION ALL
+      
+      SELECT 
+        order_number,
+        tracking_number,
+        status,
+        name as carrier,
+        service,
+        created_at,
+        shipped_at,
+        delivered_at,
+        CAST(total AS NUMERIC) as total_cost,
+        'agosto' as table_source
+      FROM reporte_envios_ago25 
+      WHERE CAST(order_number AS TEXT) = $1
+      
       ORDER BY created_at DESC
       LIMIT 1
     `;
@@ -46,7 +62,7 @@ const getShippingDataByOrderId = async (orderId) => {
       const shipment = result.rows[0];
       const calculatedCost = parseFloat(shipment.total_cost) || 0;
       
-      console.log(`✅ PostgreSQL MATCH: Orden ${orderId}`);
+      console.log(`✅ PostgreSQL MATCH: Orden ${orderId} (${shipment.table_source})`);
       console.log(`   - order_number: "${shipment.order_number}"`);
       console.log(`   - tracking_number: "${shipment.tracking_number}"`);
       console.log(`   - carrier: "${shipment.carrier}"`);
@@ -97,7 +113,11 @@ const getShippingStats = async () => {
         SUM(CAST(total AS NUMERIC)) as total_cost,
         MIN(created_at) as first_shipment,
         MAX(created_at) as last_shipment
-      FROM reporte_envios_sept25
+      FROM (
+        SELECT name, total, created_at FROM reporte_envios_sept25
+        UNION ALL
+        SELECT name, total, created_at FROM reporte_envios_ago25
+      ) combined_tables
     `;
     
     const result = await pool.query(query);
@@ -118,8 +138,22 @@ const getAllShipments = async (limit = 10) => {
         name as carrier,
         status,
         created_at,
-        CAST(total AS NUMERIC) as total_cost
+        CAST(total AS NUMERIC) as total_cost,
+        'septiembre' as table_source
       FROM reporte_envios_sept25 
+      
+      UNION ALL
+      
+      SELECT 
+        order_number,
+        tracking_number,
+        name as carrier,
+        status,
+        created_at,
+        CAST(total AS NUMERIC) as total_cost,
+        'agosto' as table_source
+      FROM reporte_envios_ago25 
+      
       ORDER BY created_at DESC 
       LIMIT $1
     `;
@@ -150,10 +184,25 @@ const getBulkShippingCosts = async (orderIds) => {
         service,
         status,
         CAST(total AS NUMERIC) as total_cost,
-        created_at
+        created_at,
+        'septiembre' as table_source
       FROM reporte_envios_sept25 
-      WHERE 
-        order_number = ANY($1::text[])
+      WHERE order_number = ANY($1::text[])
+      
+      UNION ALL
+      
+      SELECT 
+        CAST(order_number AS TEXT) as order_id,
+        CAST(tracking_number AS TEXT) as tracking_number,
+        name as carrier,
+        service,
+        status,
+        CAST(total AS NUMERIC) as total_cost,
+        created_at,
+        'agosto' as table_source
+      FROM reporte_envios_ago25 
+      WHERE order_number = ANY($1::text[])
+      
       ORDER BY created_at DESC
     `;
     
@@ -190,17 +239,25 @@ const testConnection = async () => {
     const result = await pool.query('SELECT NOW() as current_time, version() as pg_version');
     console.log('✅ PostgreSQL connection successful:', result.rows[0]);
     
-    // DIAGNÓSTICO: Ver TODAS las columnas y datos disponibles
+    // DIAGNÓSTICO: Ver datos de AMBAS tablas
+    console.log('🔍 DIAGNÓSTICO PostgreSQL - Ambas tablas (Agosto + Septiembre):');
+    
+    // Contar registros en cada tabla
+    const countSept = await pool.query('SELECT COUNT(*) as count FROM reporte_envios_sept25');
+    const countAgo = await pool.query('SELECT COUNT(*) as count FROM reporte_envios_ago25');
+    
+    console.log(`📊 Septiembre: ${countSept.rows[0].count} registros`);
+    console.log(`📊 Agosto: ${countAgo.rows[0].count} registros`);
+    console.log(`📊 TOTAL: ${parseInt(countSept.rows[0].count) + parseInt(countAgo.rows[0].count)} registros`);
+    
+    // Mostrar muestras de cada tabla
     const diagnosticQuery = `
-      SELECT *
-      FROM reporte_envios_sept25 
-      ORDER BY created_at DESC 
-      LIMIT 3
+      SELECT *, 'septiembre' as table_source FROM reporte_envios_sept25 ORDER BY created_at DESC LIMIT 2
+      UNION ALL
+      SELECT *, 'agosto' as table_source FROM reporte_envios_ago25 ORDER BY created_at DESC LIMIT 2
     `;
     
     const diagnosticResult = await pool.query(diagnosticQuery);
-    console.log('🔍 DIAGNÓSTICO PostgreSQL - Primeros 5 registros:');
-    console.log('📊 Total registros en tabla:', diagnosticResult.rows[0]?.total_records || 0);
     
     console.log('📋 TODAS LAS COLUMNAS DISPONIBLES:');
     if (diagnosticResult.rows.length > 0) {
