@@ -26,9 +26,7 @@ const WOOCOMMERCE_CONSUMER_SECRET = process.env.WOOCOMMERCE_CONSUMER_SECRET || '
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
-// Configuración de Envia.com API
-const ENVIA_API_KEY = process.env.ENVIA_API_KEY || '6675cfeae62ee00d9bbb96c8648d4576b6d8bf0cdc3b00c56ab8502b2964236a';
-const ENVIA_BASE_URL = 'https://queries.envia.com'; // URL base común para APIs de Envia
+// Configuración de Envia.com eliminada - usando solo datos del Excel
 
 // Función para autenticar con WooCommerce
 const getWooCommerceAuth = () => {
@@ -43,33 +41,7 @@ const getWooCommerceAuth = () => {
 const wooCache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
-// Función para consultar Envia.com API
-const fetchEnviaData = async (endpoint, options = {}) => {
-  const url = `${ENVIA_BASE_URL}/${endpoint}`;
-  
-  try {
-    console.log(`🚚 Fetching from Envia.com: ${endpoint}`);
-    const response = await fetch(url, {
-      method: options.method || 'GET',
-      headers: {
-        'Authorization': `Bearer ${ENVIA_API_KEY}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Envia API error: ${response.status} - ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching Envia data:', error);
-    throw error;
-  }
-};
+// Función fetchEnviaData eliminada - usando solo datos del Excel
 
 // Mapeo offline de costos reales desde el Excel de Envia.com (septiembre 2025)
 let enviaOrderMapping = null;
@@ -98,7 +70,7 @@ const loadEnviaOrderMapping = () => {
 // Función para obtener costos de envío por referencia de orden
 const getShippingCostByOrderReference = async (orderReference) => {
   try {
-    // PRIMERA OPCIÓN: Usar mapeo offline con datos reales del Excel
+    // SOLO USAR DATOS DEL EXCEL - SIN API DE ENVIA
     const mapping = loadEnviaOrderMapping();
     const orderIdStr = orderReference.toString();
     
@@ -111,40 +83,12 @@ const getShippingCostByOrderReference = async (orderReference) => {
         service: 'Ground',
         tracking_number: null,
         shipments_count: orderData.shipments_count,
-        source: 'offline_mapping' // Identificar la fuente
+        source: 'excel_data'
       };
     }
     
-    // SEGUNDA OPCIÓN: Intentar API en tiempo real (para órdenes no en el mapeo)
-    const possibleEndpoints = [
-      `shipments?reference=${orderReference}`,
-      `shipments/search?reference=${orderReference}`,
-      `orders/${orderReference}`,
-      `v1/shipments?reference=${orderReference}`
-    ];
-    
-    for (const endpoint of possibleEndpoints) {
-      try {
-        const data = await fetchEnviaData(endpoint);
-        if (data && data.shipments && data.shipments.length > 0) {
-          const shipment = data.shipments[0];
-          return {
-            found: true,
-            cost: shipment.cost || shipment.price || shipment.total_price || 0,
-            carrier: shipment.carrier_name || shipment.carrier || 'Unknown',
-            service: shipment.service_name || shipment.service || 'Standard',
-            tracking_number: shipment.tracking_number || null,
-            source: 'api_realtime'
-          };
-        }
-      } catch (err) {
-        // Continuar con el siguiente endpoint si este falla
-        console.log(`❌ Endpoint ${endpoint} failed:`, err.message);
-        continue;
-      }
-    }
-    
-    return { found: false, cost: 0, message: 'Shipment not found in Envia.com', source: 'not_found' };
+    // Si no está en el Excel, no hay costo de envío
+    return { found: false, cost: 0, message: 'Orden no encontrada en datos del Excel', source: 'not_in_excel' };
   } catch (error) {
     console.error('Error getting shipping cost:', error);
     return { found: false, cost: 0, error: error.message, source: 'error' };
@@ -481,7 +425,7 @@ const calculatePercentageChange = (current, previous) => {
 const handleDashboard = async (query) => {
   try {
     // NUEVO: Obtener período de los parámetros de query o fechas personalizadas
-    const periodParam = query.period || 'october-2025';
+    const periodParam = query.period || 'september-2025';
     const comparisonPeriodParam = query.comparison_period || 'auto';
     const customStartDate = query.start_date;
     const customEndDate = query.end_date;
@@ -571,11 +515,11 @@ const handleDashboard = async (query) => {
         endDate = new Date('2025-08-31T23:59:59Z').toISOString();
         periodLabel = 'Agosto 2025';
         break;
-      case 'october-2025':
+      case 'september-2025':
       default:
-        startDate = new Date('2025-10-01T00:00:00Z').toISOString();
-        endDate = new Date('2025-10-31T23:59:59Z').toISOString();
-        periodLabel = 'Octubre 2025';
+        startDate = new Date('2025-09-01T00:00:00Z').toISOString();
+        endDate = new Date('2025-09-30T23:59:59Z').toISOString();
+        periodLabel = 'Septiembre 2025';
         break;
       }
     }
@@ -1051,8 +995,11 @@ const handleDashboard = async (query) => {
     const mapping = loadEnviaOrderMapping();
     console.log(`📦 Mapeo offline cargado con ${Object.keys(mapping).length} órdenes`);
     
-    // Procesar costos de envío para cada orden
-    for (const order of orders) {
+    // Procesar costos de envío solo para primeras 50 órdenes para evitar timeouts
+    const ordersToProcess = orders.slice(0, 50);
+    console.log(`🚀 Procesando ${ordersToProcess.length} órdenes de ${orders.length} total para análisis de shipping`);
+    
+    for (const order of ordersToProcess) {
       const orderReference = order.id.toString();
       const wooShippingCost = parseFloat(order.shipping_total) || 0;
       
@@ -1156,7 +1103,8 @@ const handleDashboard = async (query) => {
     };
     
     // Lista de códigos de cupones que indican envío gratis
-    const freeShippingCodes = ['enviodist', 'envío gratis', 'envio gratis', 'guiapropia', 'free_shipping'];
+    // NOTA: 'guiapropia' removido porque el cliente paga su propio envío (no hay costo para Adaptoheal)
+    const freeShippingCodes = ['enviodist', 'envío gratis', 'envio gratis', 'free_shipping'];
     
     try {
       // Procesar cupones desde las órdenes
@@ -1723,8 +1671,8 @@ const getHTML = () => {
                                     <option value="this-month" style="color: #1f2937; background: white;">📅 Este mes</option>
                                     <option value="last-month" style="color: #1f2937; background: white;">📅 Mes anterior</option>
                                     <option value="august-2025" style="color: #1f2937; background: white;">📊 Agosto 2025</option>
-                                    <option value="september-2025" style="color: #1f2937; background: white;">📊 Septiembre 2025</option>
-                                    <option value="october-2025" selected style="color: #1f2937; background: white;">📊 Octubre 2025</option>
+                                    <option value="september-2025" selected style="color: #1f2937; background: white;">📊 Septiembre 2025</option>
+                                    <option value="october-2025" style="color: #1f2937; background: white;">📊 Octubre 2025</option>
                                 </optgroup>
                                 
                                 <!-- Rango Personalizado -->
@@ -1775,9 +1723,12 @@ const getHTML = () => {
                         <!-- Controles de Estado y Usuario - Desktop -->
                         <div class="hidden lg:flex items-center space-x-4">
                         
-                            <div class="flex items-center space-x-2">
-                                <div class="pulse-dot w-3 h-3 bg-green-400 rounded-full"></div>
-                                <span class="text-white text-sm font-medium">En vivo</span>
+                            <div class="flex flex-col">
+                                <div class="flex items-center space-x-2">
+                                    <div class="pulse-dot w-3 h-3 bg-green-400 rounded-full"></div>
+                                    <span class="text-white text-sm font-medium">Conectado en vivo</span>
+                                </div>
+                                <span class="text-white text-xs opacity-70 ml-5">WooCommerce API v3</span>
                             </div>
                             
 
@@ -1937,7 +1888,7 @@ const getHTML = () => {
                             <div class="p-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600">
                                 <i class="fas fa-chart-line text-xl text-white"></i>
                             </div>
-                            <span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">AGO-SEP</span>
+                            <!-- Leyenda de período removida - es redundante con el selector -->
                         </div>
                         <div>
                             <p class="text-sm font-medium text-gray-600 mb-1">Ventas Totales</p>
@@ -1985,25 +1936,7 @@ const getHTML = () => {
                         </div>
                     </div>
 
-                    <!-- Estado Card -->
-                    <div class="glass-effect rounded-xl p-6 card-hover">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="p-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600">
-                                <i class="fas fa-wifi text-xl text-white"></i>
-                            </div>
-                            <div class="flex items-center space-x-1">
-                                <div class="w-2 h-2 bg-green-500 rounded-full pulse-dot"></div>
-                                <span class="text-xs font-medium text-green-600">LIVE</span>
-                            </div>
-                        </div>
-                        <div>
-                            <p class="text-sm font-medium text-gray-600 mb-1">Conexión API</p>
-                            <p id="connection-status" class="text-lg font-bold text-green-600">
-                                <i class="fas fa-check-circle mr-1"></i>Conectado
-                            </p>
-                            <p class="text-xs text-gray-500 mt-1">WooCommerce API v3</p>
-                        </div>
-                    </div>
+                    <!-- Ficha de conexión API eliminada - estado movido al header -->
                 </div>
 
                 <!-- NUEVA SECCIÓN: Tipos de Cliente (Cliente vs Distribuidor) -->
@@ -2088,12 +2021,12 @@ const getHTML = () => {
                                 <i class="fas fa-tags text-xl text-white"></i>
                             </div>
                             <div>
-                                <h3 class="text-xl font-bold text-gray-800">Cupones de Descuento</h3>
-                                <p class="text-sm text-gray-600">Análisis de cupones utilizados en el período</p>
+                                <h3 class="text-xl font-bold text-gray-800">Cupones y Promociones</h3>
+                                <p class="text-sm text-gray-600">Descuentos tradicionales y costos reales de envío gratis</p>
                             </div>
                         </div>
                         <span class="text-xs font-medium text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
-                            <i class="fas fa-percent mr-1"></i>DESCUENTOS
+                            <i class="fas fa-percent mr-1"></i>CUPONES
                         </span>
                     </div>
                     
@@ -2124,12 +2057,80 @@ const getHTML = () => {
                                         <p id="total-coupons-amount" class="text-xl font-bold text-gray-900">$0 MXN</p>
                                         <div id="total-coupons-change" class=""></div>
                                     </div>
+                                    <p id="total-coupons-percentage" class="text-xs text-gray-500 mt-1">0% del total de ventas</p>
                                 </div>
                                 <div class="text-right">
                                     <p class="text-sm font-medium text-gray-600">Órdenes con Cupón</p>
                                     <p id="total-coupons-orders" class="text-xl font-bold text-orange-600">0</p>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN: Costos Reales e Insights de Envío -->
+                <div class="glass-effect rounded-xl p-8 card-hover">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-600">
+                                <i class="fas fa-shipping-fast text-xl text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">Costos Reales e Insights de Envío</h3>
+                                <p class="text-sm text-gray-600">Datos reales desde Envia.com y análisis de carriers</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
+                            <i class="fas fa-truck mr-1"></i>ENVIA.COM
+                        </span>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Costo Real Total -->
+                        <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-100">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-600">
+                                    <i class="fas fa-dollar-sign text-xl text-white"></i>
+                                </div>
+                                <span class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">REAL</span>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-600 mb-1">Costo Real Total</p>
+                                <p id="shipping-total-real" class="text-xl font-bold text-gray-900">$0 MXN</p>
+                                <div class="mt-2 space-y-1">
+                                    <p id="shipping-orders-found" class="text-xs text-gray-500">0 envíos encontrados</p>
+                                    <p id="shipping-avg-real" class="text-xs text-blue-600">Promedio: $0</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Top Envío -->
+                        <div class="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 border border-yellow-100">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-3 rounded-lg bg-gradient-to-r from-yellow-500 to-orange-600">
+                                    <i class="fas fa-crown text-xl text-white"></i>
+                                </div>
+                                <span class="text-xs font-bold text-yellow-600 bg-yellow-100 px-2 py-1 rounded-full">TOP</span>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-600 mb-1">Envío Más Costoso</p>
+                                <p id="shipping-top-cost" class="text-lg font-bold text-gray-900">$0</p>
+                                <div class="mt-2 space-y-1">
+                                    <p id="shipping-top-order" class="text-xs text-gray-500">Orden: -</p>
+                                    <p id="shipping-top-carrier" class="text-xs text-yellow-600">-</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Top Órdenes de Envío Gratis Más Costosas -->
+                    <div class="mt-6 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-6 border border-red-100">
+                        <h4 class="text-lg font-semibold text-gray-800 mb-4">
+                            <i class="fas fa-trophy text-red-600 mr-2"></i>
+                            Top 5 Envíos "Gratis" Más Costosos
+                        </h4>
+                        <div id="top-free-shipping-orders" class="space-y-3">
+                            <!-- Se cargarán dinámicamente -->
                         </div>
                     </div>
                 </div>
@@ -2436,180 +2437,8 @@ const getHTML = () => {
                     </div>
                 </div>
 
-                <!-- NUEVA SECCIÓN: Costos de Envío Reales -->
-                <div class="glass-effect rounded-xl p-8 card-hover">
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-600">
-                                <i class="fas fa-shipping-fast text-xl text-white"></i>
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-bold text-gray-800">Costos de Envío Reales</h3>
-                                <p class="text-sm text-gray-600">Datos reales desde Envia.com vs WooCommerce</p>
-                            </div>
-                        </div>
-                        <span class="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
-                            <i class="fas fa-truck mr-1"></i>ENVIA.COM
-                        </span>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                        <!-- Costo Real Total -->
-                        <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-100">
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="p-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-600">
-                                    <i class="fas fa-dollar-sign text-xl text-white"></i>
-                                </div>
-                                <span id="shipping-coverage" class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">0%</span>
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-600 mb-1">Costo Real Total</p>
-                                <p id="shipping-total-real" class="text-xl font-bold text-gray-900">$0 MXN</p>
-                                <div class="mt-2 space-y-1">
-                                    <p id="shipping-orders-found" class="text-xs text-gray-500">0 envíos encontrados</p>
-                                    <p id="shipping-avg-real" class="text-xs text-blue-600">Promedio: $0</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- WooCommerce vs Real -->
-                        <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-100">
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="p-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600">
-                                    <i class="fas fa-balance-scale text-xl text-white"></i>
-                                </div>
-                                <span id="shipping-difference-badge" class="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">$0</span>
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-600 mb-1">WooCommerce</p>
-                                <p id="shipping-total-woo" class="text-lg font-bold text-gray-700">$0 MXN</p>
-                                <div class="mt-2 space-y-1">
-                                    <p id="shipping-difference" class="text-xs text-gray-500">Diferencia: $0</p>
-                                    <p id="shipping-percentage" class="text-xs text-green-600">0% de ventas</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Carriers -->
-                        <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="p-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-600">
-                                    <i class="fas fa-truck text-xl text-white"></i>
-                                </div>
-                                <span id="carriers-count" class="text-xs font-bold text-purple-600 bg-purple-100 px-2 py-1 rounded-full">0</span>
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-600 mb-1">Carrier Principal</p>
-                                <p id="shipping-main-carrier" class="text-lg font-bold text-gray-900">-</p>
-                                <div class="mt-2 space-y-1">
-                                    <p id="shipping-carrier-cost" class="text-xs text-gray-500">Costo: $0</p>
-                                    <p id="shipping-carrier-orders" class="text-xs text-purple-600">0 órdenes</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Top Envío -->
-                        <div class="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 border border-yellow-100">
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="p-3 rounded-lg bg-gradient-to-r from-yellow-500 to-orange-600">
-                                    <i class="fas fa-crown text-xl text-white"></i>
-                                </div>
-                                <span id="shipping-top-badge" class="text-xs font-bold text-yellow-600 bg-yellow-100 px-2 py-1 rounded-full">TOP</span>
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-600 mb-1">Envío Más Costoso</p>
-                                <p id="shipping-top-cost" class="text-lg font-bold text-gray-900">$0</p>
-                                <div class="mt-2 space-y-1">
-                                    <p id="shipping-top-order" class="text-xs text-gray-500">Orden: -</p>
-                                    <p id="shipping-top-carrier" class="text-xs text-yellow-600">-</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- NUEVA SECCIÓN: Cupones de Envío Gratis -->
-                <div class="glass-effect rounded-xl p-8 card-hover">
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-3 rounded-lg bg-gradient-to-r from-red-500 to-pink-600">
-                                <i class="fas fa-gift text-xl text-white"></i>
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-bold text-gray-800">Cupones de Envío "Gratis"</h3>
-                                <p class="text-sm text-gray-600">Costo real que absorbes en promociones de envío gratuito</p>
-                            </div>
-                        </div>
-                        <span class="text-xs font-medium text-red-600 bg-red-100 px-3 py-1 rounded-full">
-                            <i class="fas fa-money-bill-wave mr-1"></i>COSTO REAL
-                        </span>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        <!-- Costo Total Absorbido -->
-                        <div class="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-6 border border-red-100">
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="p-3 rounded-lg bg-gradient-to-r from-red-500 to-pink-600">
-                                    <i class="fas fa-hand-holding-usd text-xl text-white"></i>
-                                </div>
-                                <span id="free-shipping-percentage" class="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full">0%</span>
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-600 mb-1">Costo Real Absorbido</p>
-                                <p id="free-shipping-total" class="text-2xl font-bold text-red-600">$0 MXN</p>
-                                <div class="mt-2 space-y-1">
-                                    <p id="free-shipping-orders" class="text-xs text-gray-500">0 órdenes "gratis"</p>
-                                    <p id="free-shipping-avg" class="text-xs text-red-600">Promedio: $0</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Cupón "envío gratis" -->
-                        <div class="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-6 border border-orange-100">
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="p-3 rounded-lg bg-gradient-to-r from-orange-500 to-red-600">
-                                    <i class="fas fa-tag text-xl text-white"></i>
-                                </div>
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-600 mb-1">"envío gratis"</p>
-                                <p id="envio-gratis-cost" class="text-lg font-bold text-gray-900">$0 MXN</p>
-                                <div class="mt-2 space-y-1">
-                                    <p id="envio-gratis-orders" class="text-xs text-gray-500">0 órdenes</p>
-                                    <p id="envio-gratis-avg" class="text-xs text-orange-600">Prom: $0</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Cupón "enviodist" -->
-                        <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6 border border-purple-100">
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="p-3 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600">
-                                    <i class="fas fa-crown text-xl text-white"></i>
-                                </div>
-                            </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-600 mb-1">"enviodist"</p>
-                                <p id="enviodist-cost" class="text-lg font-bold text-gray-900">$0 MXN</p>
-                                <div class="mt-2 space-y-1">
-                                    <p id="enviodist-orders" class="text-xs text-gray-500">0 órdenes</p>
-                                    <p id="enviodist-avg" class="text-xs text-purple-600">Prom: $0</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Top Órdenes Costosas -->
-                    <div class="mt-6 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-6 border border-red-100">
-                        <h4 class="text-lg font-semibold text-gray-800 mb-4">
-                            <i class="fas fa-trophy text-red-600 mr-2"></i>
-                            Top 5 Envíos "Gratis" Más Costosos
-                        </h4>
-                        <div id="top-free-shipping-orders" class="space-y-3">
-                            <!-- Se cargarán dinámicamente -->
-                        </div>
-                    </div>
-                </div>
+
             </div>
 
             <!-- Error State -->
@@ -2632,7 +2461,7 @@ const getHTML = () => {
         <script>
         // Variables globales
         let dashboardData = null;
-        let activePeriod = 'october-2025';
+        let activePeriod = 'september-2025';
         let comparisonEnabled = true; // Simplificado: solo on/off
         let customDateRange = null;
 
@@ -3222,12 +3051,12 @@ const getHTML = () => {
           // Actualizar labels de período dinámicamente
           updateProductsAndOrdersLabels();
           
-          // Actualizar sección de cupones
-          updateCouponsSection();
+          // Actualizar sección unificada de cupones
+          updateUnifiedCouponsSection();
           
-          // NUEVO: Actualizar secciones de costos de envío
+          // NUEVO: Actualizar secciones de costos de envío e insights
           updateShippingCostsSection();
-          updateFreeShippingCouponsSection();
+          updateShippingInsightsSection();
 
           document.getElementById('loading').classList.add('hidden');
           document.getElementById('dashboard').classList.remove('hidden');
@@ -3314,8 +3143,9 @@ const getHTML = () => {
         }
 
         // Actualizar sección de cupones
-        function updateCouponsSection() {
-          if (!dashboardData || !dashboardData.coupons) {
+        // FUNCIÓN UNIFICADA: Actualizar sección de cupones (tradicionales + envío gratis)
+        function updateUnifiedCouponsSection() {
+          if (!dashboardData || (!dashboardData.coupons && !dashboardData.freeShippingCoupons)) {
             document.getElementById('coupons-loading').classList.add('hidden');
             document.getElementById('coupons-empty').classList.remove('hidden');
             document.getElementById('coupons-grid').classList.add('hidden');
@@ -3323,17 +3153,22 @@ const getHTML = () => {
             return;
           }
           
-          const couponsData = dashboardData.coupons;
+          const couponsData = dashboardData.coupons || { couponsUsed: [], totalAmount: 0, totalOrders: 0 };
+          const freeShippingData = dashboardData.freeShippingCoupons || { couponsBreakdown: [], totalRealCost: 0, totalOrders: 0 };
           const comparative = dashboardData.comparative;
           
           // Ocultar loading
           document.getElementById('coupons-loading').classList.add('hidden');
           
-          // Si no hay cupones
-          if (couponsData.couponsUsed.length === 0) {
+          // Si no hay cupones de ningún tipo
+          if (couponsData.couponsUsed.length === 0 && freeShippingData.couponsBreakdown.length === 0) {
             document.getElementById('coupons-empty').classList.remove('hidden');
             document.getElementById('coupons-grid').classList.add('hidden');
             document.getElementById('coupons-summary').classList.add('hidden');
+            // Resetear valores por defecto
+            document.getElementById('total-coupons-amount').innerHTML = '$0 MXN';
+            document.getElementById('total-coupons-orders').textContent = '0';
+            document.getElementById('total-coupons-percentage').textContent = '0% del total de ventas';
             return;
           }
           
@@ -3342,8 +3177,15 @@ const getHTML = () => {
           document.getElementById('coupons-grid').classList.remove('hidden');
           document.getElementById('coupons-summary').classList.remove('hidden');
           
-          // Generar HTML para cada cupón
-          const couponsHTML = couponsData.couponsUsed.map((coupon, index) => {
+          // Filtrar cupones tradicionales (excluir códigos de envío gratis)
+          // NOTA: 'guiapropia' ahora aparece como cupón tradicional (cliente paga su propio envío)
+          const freeShippingCodes = ['enviodist', 'envío gratis', 'envio gratis', 'free_shipping'];
+          const traditionalCoupons = couponsData.couponsUsed.filter(coupon => 
+            !freeShippingCodes.includes(coupon.code.toLowerCase())
+          );
+          
+          // Generar HTML para cupones tradicionales
+          const traditionalCouponsHTML = traditionalCoupons.map((coupon, index) => {
             const bgColors = [
               'from-orange-50 to-red-50 border-orange-100',
               'from-amber-50 to-yellow-50 border-amber-100',
@@ -3376,7 +3218,7 @@ const getHTML = () => {
                       <i class="fas fa-tag text-sm text-white"></i>
                     </div>
                     <div>
-                      <p class="text-xs font-medium text-gray-600">Cupón</p>
+                      <p class="text-xs font-medium text-gray-600">Cupón Descuento</p>
                       <p class="text-sm font-bold text-gray-900 break-all">\${coupon.code}</p>
                     </div>
                   </div>
@@ -3400,11 +3242,86 @@ const getHTML = () => {
             \`;
           }).join('');
           
-          document.getElementById('coupons-grid').innerHTML = couponsHTML;
+          // Generar HTML para cupones de envío gratis
+          const freeShippingCouponsHTML = freeShippingData.couponsBreakdown.map((coupon, index) => {
+            const bgColors = [
+              'from-red-50 to-pink-50 border-red-100',
+              'from-purple-50 to-indigo-50 border-purple-100',
+              'from-blue-50 to-cyan-50 border-blue-100',
+              'from-green-50 to-emerald-50 border-green-100'
+            ];
+            const iconColors = [
+              'bg-red-500',
+              'bg-purple-500', 
+              'bg-blue-500',
+              'bg-green-500'
+            ];
+            
+            const colorIndex = index % bgColors.length;
+            
+            return \`
+              <div class="bg-gradient-to-r \${bgColors[colorIndex]} rounded-xl p-4 border">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center space-x-2">
+                    <div class="p-2 rounded-lg \${iconColors[colorIndex]}">
+                      <i class="fas fa-shipping-fast text-sm text-white"></i>
+                    </div>
+                    <div>
+                      <p class="text-xs font-medium text-gray-600">Envío Gratis</p>
+                      <p class="text-sm font-bold text-gray-900 break-all">\${coupon.code}</p>
+                    </div>
+                  </div>
+                  <span class="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full">COSTO REAL</span>
+                </div>
+                <div class="space-y-1">
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs text-gray-500">Costo absorbido:</p>
+                    <p class="text-sm font-bold text-red-600">\${formatCurrency(coupon.totalRealCost)}</p>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs text-gray-500">Órdenes:</p>
+                    <p class="text-sm font-medium text-gray-700">\${coupon.ordersCount}</p>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs text-gray-500">Promedio/orden:</p>
+                    <p class="text-sm font-medium text-gray-700">\${formatCurrency(coupon.avgCostPerOrder)}</p>
+                  </div>
+                </div>
+              </div>
+            \`;
+          }).join('');
           
-          // Actualizar resumen
-          document.getElementById('total-coupons-amount').textContent = formatCurrency(couponsData.totalAmount);
-          document.getElementById('total-coupons-orders').textContent = formatNumber(couponsData.totalOrders);
+          // Combinar ambos tipos de cupones
+          document.getElementById('coupons-grid').innerHTML = traditionalCouponsHTML + freeShippingCouponsHTML;
+          
+          // Calcular totales combinados
+          const totalDiscountAmount = couponsData.totalAmount || 0;
+          const totalFreeShippingCost = freeShippingData.totalRealCost || 0;
+          const totalCombinedImpact = totalDiscountAmount + totalFreeShippingCost;
+          const totalCombinedOrders = (couponsData.totalOrders || 0) + (freeShippingData.totalOrders || 0);
+          
+          // Calcular porcentaje del total de ventas
+          const totalSales = dashboardData.totalSales30Days || dashboardData.revenue || 0;
+          const percentageOfSales = totalSales > 0 ? ((totalCombinedImpact / totalSales) * 100).toFixed(1) : '0';
+          
+          // Actualizar resumen con datos combinados
+          document.getElementById('total-coupons-amount').innerHTML = \`
+            <div>
+              <div class="text-xl font-bold text-gray-900">\${formatCurrency(totalCombinedImpact)} MXN</div>
+              <div class="text-xs text-gray-500 mt-1">
+                <span class="text-orange-600">Descuentos: \${formatCurrency(totalDiscountAmount)}</span> • 
+                <span class="text-red-600">Envío gratis: \${formatCurrency(totalFreeShippingCost)}</span>
+              </div>
+              <div class="text-xs font-medium text-blue-600 mt-1">
+                \${percentageOfSales}% del total de ventas
+              </div>
+            </div>
+          \`;
+          document.getElementById('total-coupons-orders').textContent = formatNumber(totalCombinedOrders);
+          
+          // Usar la variable totalSales ya declarada arriba
+          const percentageOfSales2 = totalSales > 0 ? ((totalCombinedImpact / totalSales) * 100).toFixed(1) : '0';
+          document.getElementById('total-coupons-percentage').textContent = percentageOfSales2 + '% del total de ventas';
           
           // Mostrar indicador comparativo si disponible
           if (comparative && comparative.coupons) {
@@ -3414,109 +3331,70 @@ const getHTML = () => {
           }
         }
 
-        // NUEVA FUNCIÓN: Actualizar sección de costos de envío reales
+        // FUNCIÓN ACTUALIZADA: Actualizar sección de costos de envío reales
         function updateShippingCostsSection() {
           if (!dashboardData || !dashboardData.shippingCosts) {
-            // Si no hay datos, ocultar o mostrar valores por defecto
-            document.getElementById('shipping-total-real').textContent = '$0 MXN';
-            document.getElementById('shipping-coverage').textContent = '0%';
-            document.getElementById('shipping-orders-found').textContent = '0 envíos encontrados';
-            document.getElementById('shipping-avg-real').textContent = 'Promedio: $0';
-            document.getElementById('shipping-total-woo').textContent = '$0 MXN';
-            document.getElementById('shipping-difference').textContent = 'Diferencia: $0';
-            document.getElementById('shipping-percentage').textContent = '0% de ventas';
-            document.getElementById('shipping-difference-badge').textContent = '$0';
-            document.getElementById('shipping-main-carrier').textContent = '-';
-            document.getElementById('shipping-carrier-cost').textContent = 'Costo: $0';
-            document.getElementById('shipping-carrier-orders').textContent = '0 órdenes';
-            document.getElementById('carriers-count').textContent = '0';
-            document.getElementById('shipping-top-cost').textContent = '$0';
-            document.getElementById('shipping-top-order').textContent = 'Orden: -';
-            document.getElementById('shipping-top-carrier').textContent = '-';
+            // Si no hay datos, mostrar valores por defecto solo en elementos que existen
+            const totalRealElement = document.getElementById('shipping-total-real');
+            if (totalRealElement) totalRealElement.textContent = '$0 MXN';
+            
+            const ordersFoundElement = document.getElementById('shipping-orders-found');
+            if (ordersFoundElement) ordersFoundElement.textContent = '0 envíos encontrados';
+            
+            const avgRealElement = document.getElementById('shipping-avg-real');
+            if (avgRealElement) avgRealElement.textContent = 'Promedio: $0';
+
+            const topCostElement = document.getElementById('shipping-top-cost');
+            if (topCostElement) topCostElement.textContent = '$0';
+            
+            const topOrderElement = document.getElementById('shipping-top-order');
+            if (topOrderElement) topOrderElement.textContent = 'Orden: -';
+            
+            const topCarrierElement = document.getElementById('shipping-top-carrier');
+            if (topCarrierElement) topCarrierElement.textContent = '-';
+            
             return;
           }
           
           const shippingData = dashboardData.shippingCosts;
           
-          // Costo Real Total
-          document.getElementById('shipping-total-real').textContent = formatCurrency(shippingData.totalRealCost);
-          document.getElementById('shipping-coverage').textContent = shippingData.summary.coveragePercentage + '%';
-          document.getElementById('shipping-orders-found').textContent = shippingData.found + ' envíos encontrados';
-          document.getElementById('shipping-avg-real').textContent = 'Promedio: ' + formatCurrency(shippingData.avgRealCost);
+          // Costo Real Total - solo actualizar si los elementos existen
+          const totalRealElement = document.getElementById('shipping-total-real');
+          if (totalRealElement) totalRealElement.textContent = formatCurrency(shippingData.totalRealCost);
           
-          // WooCommerce vs Real
-          document.getElementById('shipping-total-woo').textContent = formatCurrency(shippingData.totalWooCommerceCost);
-          document.getElementById('shipping-difference').textContent = 'Diferencia: ' + formatCurrency(Math.abs(shippingData.costDifference));
-          document.getElementById('shipping-percentage').textContent = shippingData.summary.percentageOfTotalSales + '% de ventas';
+          const ordersFoundElement = document.getElementById('shipping-orders-found');
+          if (ordersFoundElement) ordersFoundElement.textContent = shippingData.found + ' envíos encontrados';
           
-          // Badge de diferencia (verde si ahorro, rojo si costo extra)
-          const isPositive = shippingData.costDifference >= 0;
-          const badgeClass = isPositive ? 'text-red-600 bg-red-100' : 'text-green-600 bg-green-100';
-          document.getElementById('shipping-difference-badge').className = 'text-xs font-bold ' + badgeClass + ' px-2 py-1 rounded-full';
-          document.getElementById('shipping-difference-badge').textContent = (isPositive ? '+' : '') + formatCurrency(shippingData.costDifference);
-          
-          // Carriers
-          if (shippingData.carriers && shippingData.carriers.length > 0) {
-            const mainCarrier = shippingData.carriers[0];
-            document.getElementById('shipping-main-carrier').textContent = mainCarrier.name;
-            document.getElementById('shipping-carrier-cost').textContent = 'Costo: ' + formatCurrency(mainCarrier.totalCost);
-            document.getElementById('shipping-carrier-orders').textContent = mainCarrier.ordersCount + ' órdenes';
-            document.getElementById('carriers-count').textContent = shippingData.carriers.length.toString();
-          }
-          
-          // Top Envío
+          const avgRealElement = document.getElementById('shipping-avg-real');
+          if (avgRealElement) avgRealElement.textContent = 'Promedio: ' + formatCurrency(shippingData.avgRealCost);
+
+          // Top Envío - solo actualizar si los elementos existen
           if (shippingData.topShipments && shippingData.topShipments.length > 0) {
             const topShipment = shippingData.topShipments[0];
-            document.getElementById('shipping-top-cost').textContent = formatCurrency(topShipment.realCost);
-            document.getElementById('shipping-top-order').textContent = 'Orden: #' + topShipment.orderId;
-            document.getElementById('shipping-top-carrier').textContent = topShipment.carrier;
+            
+            const topCostElement = document.getElementById('shipping-top-cost');
+            if (topCostElement) topCostElement.textContent = formatCurrency(topShipment.realCost);
+            
+            const topOrderElement = document.getElementById('shipping-top-order');
+            if (topOrderElement) topOrderElement.textContent = 'Orden: #' + topShipment.orderId;
+            
+            const topCarrierElement = document.getElementById('shipping-top-carrier');
+            if (topCarrierElement) topCarrierElement.textContent = topShipment.carrier;
           }
         }
 
-        // NUEVA FUNCIÓN: Actualizar sección de cupones de envío gratis
-        function updateFreeShippingCouponsSection() {
+        // FUNCIÓN SIMPLIFICADA: Actualizar sección de insights de envío (solo top orders)
+        function updateShippingInsightsSection() {
           if (!dashboardData || !dashboardData.freeShippingCoupons) {
-            // Si no hay datos, ocultar o mostrar valores por defecto
-            document.getElementById('free-shipping-total').textContent = '$0 MXN';
-            document.getElementById('free-shipping-percentage').textContent = '0%';
-            document.getElementById('free-shipping-orders').textContent = '0 órdenes "gratis"';
-            document.getElementById('free-shipping-avg').textContent = 'Promedio: $0';
-            document.getElementById('envio-gratis-cost').textContent = '$0 MXN';
-            document.getElementById('envio-gratis-orders').textContent = '0 órdenes';
-            document.getElementById('envio-gratis-avg').textContent = 'Prom: $0';
-            document.getElementById('enviodist-cost').textContent = '$0 MXN';
-            document.getElementById('enviodist-orders').textContent = '0 órdenes';
-            document.getElementById('enviodist-avg').textContent = 'Prom: $0';
-            document.getElementById('top-free-shipping-orders').innerHTML = '<p class="text-gray-500 text-sm">No hay datos de cupones de envío gratis</p>';
+            // Si no hay datos, mostrar mensaje por defecto solo en top orders
+            const topOrdersElement = document.getElementById('top-free-shipping-orders');
+            if (topOrdersElement) {
+              topOrdersElement.innerHTML = '<p class="text-gray-500 text-sm">No hay datos de envíos gratis en este período</p>';
+            }
             return;
           }
           
-          const freeShippingData = dashboardData.freeShippingCoupons;
-          
-          // Costo Total Absorbido
-          document.getElementById('free-shipping-total').textContent = formatCurrency(freeShippingData.totalRealCost);
-          document.getElementById('free-shipping-percentage').textContent = freeShippingData.summary.percentageOfTotalSales + '%';
-          document.getElementById('free-shipping-orders').textContent = freeShippingData.totalOrders + ' órdenes "gratis"';
-          document.getElementById('free-shipping-avg').textContent = 'Promedio: ' + formatCurrency(freeShippingData.avgCostPerOrder);
-          
-          // Desglose por cupón
-          if (freeShippingData.couponsBreakdown && freeShippingData.couponsBreakdown.length > 0) {
-            // Buscar cupón "envío gratis"
-            const envioGratisCoupon = freeShippingData.couponsBreakdown.find(c => c.code === 'envío gratis');
-            if (envioGratisCoupon) {
-              document.getElementById('envio-gratis-cost').textContent = formatCurrency(envioGratisCoupon.totalRealCost);
-              document.getElementById('envio-gratis-orders').textContent = envioGratisCoupon.ordersCount + ' órdenes';
-              document.getElementById('envio-gratis-avg').textContent = 'Prom: ' + formatCurrency(envioGratisCoupon.avgCostPerOrder);
-            }
-            
-            // Buscar cupón "enviodist"
-            const enviodistCoupon = freeShippingData.couponsBreakdown.find(c => c.code === 'enviodist');
-            if (enviodistCoupon) {
-              document.getElementById('enviodist-cost').textContent = formatCurrency(enviodistCoupon.totalRealCost);
-              document.getElementById('enviodist-orders').textContent = enviodistCoupon.ordersCount + ' órdenes';
-              document.getElementById('enviodist-avg').textContent = 'Prom: ' + formatCurrency(enviodistCoupon.avgCostPerOrder);
-            }
-          }
+          const freeShippingData = dashboardData.freeShippingCoupons || {};
           
           // Top Órdenes Costosas
           if (freeShippingData.topFreeShippingOrders && freeShippingData.topFreeShippingOrders.length > 0) {
@@ -4329,106 +4207,9 @@ const server = http.createServer(async (req, res) => {
       });
       return;
       
-    } else if (pathname === '/api/envia-test-public' && req.method === 'GET') {
-      // TEMPORAL: Test público de conexión con Envia.com (sin autenticación)
-      try {
-        const orderReference = query.order_ref || '13786';
-        console.log(`🧪 Public test: Testing Envia.com API with order reference: ${orderReference}`);
-        
-        const testEndpoints = ['shipments', 'v1/shipments', 'orders'];
-        const results = [];
-        
-        for (const endpoint of testEndpoints) {
-          try {
-            const data = await fetchEnviaData(endpoint);
-            results.push({
-              endpoint: endpoint,
-              status: 'success',
-              dataCount: Array.isArray(data.shipments) ? data.shipments.length : 0,
-              sample: Array.isArray(data.shipments) && data.shipments.length > 0 ? data.shipments[0] : null
-            });
-          } catch (error) {
-            results.push({
-              endpoint: endpoint,
-              status: 'error',
-              error: error.message
-            });
-          }
-        }
-        
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          success: true,
-          message: `Prueba de Envia.com API completada`,
-          orderReference: orderReference,
-          results: results,
-          timestamp: new Date().toISOString()
-        }));
-      } catch (error) {
-        console.error('Public Envia test error:', error);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-          success: false, 
-          error: 'Error en prueba pública de Envia.com',
-          details: error.message 
-        }));
-      }
-      return;
+    // Endpoints de prueba de Envia.com eliminados - usando solo datos del Excel
       
-    } else if (pathname === '/api/envia-test' && req.method === 'GET') {
-      // TEMPORAL: Test de conexión con Envia.com
-      authMiddleware(req, res, async () => {
-        try {
-          const orderReference = query.order_ref || '13786'; // Usar orden de ejemplo
-          
-          console.log(`🧪 Testing Envia.com API with order reference: ${orderReference}`);
-          
-          // Probar diferentes endpoints
-          const testEndpoints = [
-            'shipments',
-            'v1/shipments', 
-            'orders',
-            `shipments?reference=${orderReference}`
-          ];
-          
-          const results = [];
-          
-          for (const endpoint of testEndpoints) {
-            try {
-              const data = await fetchEnviaData(endpoint);
-              results.push({
-                endpoint,
-                status: 'success',
-                data_keys: Object.keys(data || {}),
-                sample_data: data
-              });
-            } catch (error) {
-              results.push({
-                endpoint,
-                status: 'error',
-                error: error.message
-              });
-            }
-          }
-          
-          // También probar obtener costo por orden
-          const shippingCost = await getShippingCostByOrderReference(orderReference);
-          
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ 
-            success: true,
-            api_key_length: ENVIA_API_KEY.length,
-            base_url: ENVIA_BASE_URL,
-            test_results: results,
-            shipping_cost_test: shippingCost
-          }));
-        } catch (error) {
-          console.error('Error testing Envia API:', error);
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: error.message }));
-        }
-      });
-      return;
+    // Endpoint de prueba de Envia.com eliminado - usando solo datos del Excel
       
     } else if (pathname === '/api/users' && req.method === 'POST') {
       // Agregar usuario (solo admin)
