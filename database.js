@@ -28,14 +28,8 @@ const getShippingDataByOrderId = async (orderId) => {
         created_at,
         shipped_at,
         delivered_at,
-        -- Buscar costo en múltiples columnas posibles  
-        COALESCE(
-          CAST(cost AS NUMERIC), 
-          CAST(price AS NUMERIC), 
-          CAST(total AS NUMERIC),
-          CAST(amount AS NUMERIC),
-          0
-        ) as total_cost
+        -- Por ahora sin costo hasta saber qué columnas existen
+        0 as total_cost
       FROM reporte_envios_sept25 
       WHERE 
         CAST(tracking_number AS TEXT) = $1
@@ -199,27 +193,30 @@ const testConnection = async () => {
     const result = await pool.query('SELECT NOW() as current_time, version() as pg_version');
     console.log('✅ PostgreSQL connection successful:', result.rows[0]);
     
-    // DIAGNÓSTICO: Ver qué datos hay en la tabla (columnas correctas)
+    // DIAGNÓSTICO: Ver TODAS las columnas y datos disponibles
     const diagnosticQuery = `
-      SELECT 
-        tracking_number, 
-        name, 
-        status,
-        service,
-        created_at,
-        COUNT(*) OVER() as total_records
+      SELECT *
       FROM reporte_envios_sept25 
       ORDER BY created_at DESC 
-      LIMIT 5
+      LIMIT 3
     `;
     
     const diagnosticResult = await pool.query(diagnosticQuery);
     console.log('🔍 DIAGNÓSTICO PostgreSQL - Primeros 5 registros:');
     console.log('📊 Total registros en tabla:', diagnosticResult.rows[0]?.total_records || 0);
     
-    diagnosticResult.rows.forEach((row, index) => {
-      console.log(`${index + 1}. tracking_number: "${row.tracking_number}", name: "${row.name}", service: "${row.service}"`);
-    });
+    console.log('📋 TODAS LAS COLUMNAS DISPONIBLES:');
+    if (diagnosticResult.rows.length > 0) {
+      const columns = Object.keys(diagnosticResult.rows[0]);
+      console.log(`🔍 Columnas: ${columns.join(', ')}`);
+      
+      diagnosticResult.rows.forEach((row, index) => {
+        console.log(`\n${index + 1}. REGISTRO COMPLETO:`);
+        columns.forEach(col => {
+          if (col !== 'COUNT') console.log(`   ${col}: "${row[col]}"`);
+        });
+      });
+    }
     
     return true;
   } catch (error) {
