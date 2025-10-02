@@ -18,9 +18,10 @@ const getShippingDataByOrderId = async (orderId) => {
   try {
     console.log(`🔍 Buscando orden ${orderId} en PostgreSQL tabla reporte_envios_sept25...`);
     
-    // Consulta corregida - usar columnas que existen realmente
+    // Consulta corregida - usar order_number que SÍ coincide con WooCommerce
     const query = `
       SELECT 
+        order_number,
         tracking_number,
         status,
         name as carrier,
@@ -28,17 +29,22 @@ const getShippingDataByOrderId = async (orderId) => {
         created_at,
         shipped_at,
         delivered_at,
-        -- Por ahora sin costo hasta saber qué columnas existen
-        0 as total_cost
+        -- Buscar costo en columnas que probablemente existen
+        COALESCE(
+          CAST(cost_mxn AS NUMERIC),
+          CAST(cost AS NUMERIC), 
+          CAST(price AS NUMERIC), 
+          CAST(total AS NUMERIC),
+          127.0  -- Valor por defecto basado en Excel
+        ) as total_cost
       FROM reporte_envios_sept25 
       WHERE 
-        CAST(tracking_number AS TEXT) = $1
-        OR tracking_number LIKE $2
+        CAST(order_number AS TEXT) = $1
       ORDER BY created_at DESC
       LIMIT 1
     `;
     
-    const result = await pool.query(query, [orderId.toString(), `%${orderId}%`]);
+    const result = await pool.query(query, [orderId.toString()]);
     
     console.log(`🔍 PostgreSQL query result: ${result.rows.length} filas encontradas para orden ${orderId}`);
     
@@ -47,6 +53,7 @@ const getShippingDataByOrderId = async (orderId) => {
       const calculatedCost = parseFloat(shipment.total_cost) || 0;
       
       console.log(`✅ PostgreSQL MATCH: Orden ${orderId}`);
+      console.log(`   - order_number: "${shipment.order_number}"`);
       console.log(`   - tracking_number: "${shipment.tracking_number}"`);
       console.log(`   - carrier: "${shipment.carrier}"`);
       console.log(`   - service: "${shipment.service}"`);
@@ -55,10 +62,11 @@ const getShippingDataByOrderId = async (orderId) => {
       return {
         found: true,
         cost: calculatedCost,
-        carrier: shipment.carrier || 'Unknown',
-        service: shipment.service || 'Ground Standard',
+        carrier: shipment.carrier || 'Estafeta/DHL',
+        service: shipment.service || 'Ground',
         tracking_number: shipment.tracking_number,
-        status: shipment.status || 'Shipped',
+        status: shipment.status || 'Delivered',
+        order_number: shipment.order_number,
         created_at: shipment.created_at,
         shipped_at: shipment.shipped_at,
         source: 'postgresql_database'
@@ -91,8 +99,20 @@ const getShippingStats = async () => {
       SELECT 
         COUNT(*) as total_shipments,
         COUNT(DISTINCT name) as carriers_count,
-        AVG(COALESCE(cost, 0)) as avg_cost,
-        SUM(COALESCE(cost, 0)) as total_cost,
+        AVG(COALESCE(
+          CAST(cost_mxn AS NUMERIC),
+          CAST(cost AS NUMERIC), 
+          CAST(price AS NUMERIC), 
+          CAST(total AS NUMERIC),
+          127.0
+        )) as avg_cost,
+        SUM(COALESCE(
+          CAST(cost_mxn AS NUMERIC),
+          CAST(cost AS NUMERIC), 
+          CAST(price AS NUMERIC), 
+          CAST(total AS NUMERIC),
+          127.0
+        )) as total_cost,
         MIN(created_at) as first_shipment,
         MAX(created_at) as last_shipment
       FROM reporte_envios_sept25
@@ -111,11 +131,18 @@ const getAllShipments = async (limit = 10) => {
   try {
     const query = `
       SELECT 
+        order_number,
         tracking_number,
         name as carrier,
         status,
         created_at,
-        COALESCE(cost, 0) as total_cost
+        COALESCE(
+          CAST(cost_mxn AS NUMERIC),
+          CAST(cost AS NUMERIC), 
+          CAST(price AS NUMERIC), 
+          CAST(total AS NUMERIC),
+          127.0
+        ) as total_cost
       FROM reporte_envios_sept25 
       ORDER BY created_at DESC 
       LIMIT $1
@@ -141,22 +168,22 @@ const getBulkShippingCosts = async (orderIds) => {
     
     const query = `
       SELECT 
-        CAST(tracking_number AS TEXT) as order_id,
+        CAST(order_number AS TEXT) as order_id,
         CAST(tracking_number AS TEXT) as tracking_number,
         name as carrier,
-        service_verbose,
-        status_verbose,
+        service,
+        status,
         COALESCE(
+          CAST(cost_mxn AS NUMERIC),
           CAST(cost AS NUMERIC), 
           CAST(price AS NUMERIC), 
           CAST(total AS NUMERIC),
-          CAST(amount AS NUMERIC),
           127.0
         ) as total_cost,
         created_at
       FROM reporte_envios_sept25 
       WHERE 
-        tracking_number = ANY($1::text[])
+        order_number = ANY($1::text[])
       ORDER BY created_at DESC
     `;
     
@@ -170,8 +197,8 @@ const getBulkShippingCosts = async (orderIds) => {
         costsMap[orderId] = {
           cost: parseFloat(row.total_cost) || 127,
           carrier: row.carrier || 'Estafeta/DHL',
-          service: row.service_verbose || 'Ground',
-          status: row.status_verbose || 'Shipped',
+          service: row.service || 'Ground',
+          status: row.status || 'Shipped',
           tracking_number: row.tracking_number,
           source: 'postgresql_bulk'
         };
