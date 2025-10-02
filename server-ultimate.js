@@ -28,6 +28,17 @@ const {
   testConnection
 } = require('./database.js');
 
+// Importar módulo de Google Analytics 4
+const {
+  initializeGA4Client,
+  getUsersData,
+  getTopPages,
+  getDemographicData,
+  getTrafficSources,
+  getGA4Insights,
+  testGA4Connection
+} = require('./google-analytics.js');
+
 // Configuración - usando las mismas variables de entorno
 const WOOCOMMERCE_URL = process.env.WOOCOMMERCE_URL || 'https://adaptohealmx.com';
 const WOOCOMMERCE_CONSUMER_KEY = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
@@ -2062,6 +2073,119 @@ const getHTML = () => {
                     </div>
                 </div>
 
+                <!-- NUEVA SECCIÓN: Google Analytics 4 -->
+                <div class="glass-effect rounded-xl p-8 card-hover">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600">
+                                <i class="fas fa-chart-line text-xl text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">Google Analytics 4</h3>
+                                <p class="text-sm text-gray-600">Tráfico web, páginas populares y demografía</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
+                            <i class="fas fa-globe mr-1"></i>ANALYTICS
+                        </span>
+                    </div>
+                    
+                    <div id="analytics-section">
+                        <!-- Loading state -->
+                        <div id="analytics-loading" class="text-center py-8">
+                            <i class="fas fa-spinner fa-spin text-2xl text-gray-400 mb-3"></i>
+                            <p class="text-sm text-gray-500">Cargando datos de Google Analytics...</p>
+                        </div>
+                        
+                        <!-- Analytics content -->
+                        <div id="analytics-content" class="hidden">
+                            <!-- Usuarios -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-blue-500 rounded-lg">
+                                            <i class="fas fa-users text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Usuarios Totales</p>
+                                            <p id="ga4-total-users" class="text-xl font-bold text-gray-900">0</p>
+                                            <p class="text-xs text-gray-500">últimos 7 días</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-4 border border-green-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-green-500 rounded-lg">
+                                            <i class="fas fa-user-plus text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Nuevos Usuarios</p>
+                                            <p id="ga4-new-users" class="text-xl font-bold text-gray-900">0</p>
+                                            <p id="ga4-new-users-percentage" class="text-xs text-gray-500">0% del total</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-purple-500 rounded-lg">
+                                            <i class="fas fa-user-check text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Usuarios Recurrentes</p>
+                                            <p id="ga4-returning-users" class="text-xl font-bold text-gray-900">0</p>
+                                            <p id="ga4-returning-percentage" class="text-xs text-gray-500">0% del total</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Páginas más visitadas -->
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                                <div class="bg-gray-50 rounded-xl p-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fas fa-fire text-orange-500 mr-2"></i>
+                                        Páginas Más Visitadas
+                                    </h4>
+                                    <div id="ga4-top-pages" class="space-y-2">
+                                        <!-- Se llenará dinámicamente -->
+                                    </div>
+                                </div>
+                                
+                                <!-- Demografía -->
+                                <div class="bg-gray-50 rounded-xl p-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fas fa-globe-americas text-blue-500 mr-2"></i>
+                                        Top Países
+                                    </h4>
+                                    <div id="ga4-countries" class="space-y-2">
+                                        <!-- Se llenará dinámicamente -->
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Fuentes de tráfico -->
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                    <i class="fas fa-share-alt text-green-500 mr-2"></i>
+                                    Fuentes de Tráfico
+                                </h4>
+                                <div id="ga4-traffic-sources" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                    <!-- Se llenará dinámicamente -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Error state -->
+                        <div id="analytics-error" class="hidden text-center py-8">
+                            <i class="fas fa-exclamation-triangle text-3xl text-yellow-400 mb-3"></i>
+                            <p class="text-sm text-gray-500">Error cargando datos de Google Analytics</p>
+                            <p id="analytics-error-message" class="text-xs text-gray-400 mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- NUEVA SECCIÓN: Cupones de Descuento -->
                 <div class="glass-effect rounded-xl p-8 card-hover">
                     <div class="flex items-center justify-between mb-6">
@@ -2815,6 +2939,9 @@ const getHTML = () => {
             
             // Habilitar chat después de cargar datos
             enableChat();
+            
+            // Cargar datos de Google Analytics 4
+            loadAnalytics();
 
           } catch (error) {
             console.error('Error loading dashboard:', error);
@@ -2893,6 +3020,109 @@ const getHTML = () => {
             return \`<span class="\${bgClass} text-xs font-semibold px-2 py-1 rounded-full border inline-flex items-center space-x-1"><i class="\${iconClass} text-xs"></i><span>\${prefix}\${Math.abs(change).toFixed(1)}%</span></span>\`;
           } else {
             return \`<span class="\${bgClass} px-2 py-1 rounded text-xs font-medium">\${prefix}\${change.toFixed(1)}%</span>\`;
+          }
+        }
+
+        // Función para cargar datos de Google Analytics 4
+        async function loadAnalytics() {
+          try {
+            console.log('🔍 Cargando datos de Google Analytics 4...');
+            
+            // Mostrar loading state
+            document.getElementById('analytics-loading').classList.remove('hidden');
+            document.getElementById('analytics-content').classList.add('hidden');
+            document.getElementById('analytics-error').classList.add('hidden');
+            
+            // Hacer request a GA4 API (7 días por defecto)
+            const response = await axios.get('/api/analytics?days=7');
+            const result = response.data;
+            
+            if (!result.success) {
+              throw new Error(result.error || 'Error cargando datos GA4');
+            }
+            
+            const ga4Data = result.data;
+            console.log('📊 Datos GA4 recibidos:', ga4Data);
+            
+            // Actualizar usuarios
+            document.getElementById('ga4-total-users').textContent = ga4Data.users.totalUsers.toLocaleString();
+            document.getElementById('ga4-new-users').textContent = ga4Data.users.newUsers.toLocaleString();
+            document.getElementById('ga4-returning-users').textContent = ga4Data.users.returningUsers.toLocaleString();
+            
+            // Calcular porcentajes
+            const totalUsers = ga4Data.users.totalUsers;
+            const newPercentage = totalUsers > 0 ? ((ga4Data.users.newUsers / totalUsers) * 100).toFixed(1) : 0;
+            const returningPercentage = totalUsers > 0 ? ((ga4Data.users.returningUsers / totalUsers) * 100).toFixed(1) : 0;
+            
+            document.getElementById('ga4-new-users-percentage').textContent = \`\${newPercentage}% del total\`;
+            document.getElementById('ga4-returning-percentage').textContent = \`\${returningPercentage}% del total\`;
+            
+            // Mostrar páginas más visitadas
+            const topPagesContainer = document.getElementById('ga4-top-pages');
+            topPagesContainer.innerHTML = '';
+            
+            ga4Data.pages.slice(0, 5).forEach((page, index) => {
+              const pageElement = document.createElement('div');
+              pageElement.className = 'flex items-center justify-between p-2 bg-white rounded border';
+              pageElement.innerHTML = \`
+                <div class="flex items-center space-x-2">
+                  <span class="w-6 h-6 bg-orange-100 text-orange-600 text-xs font-bold rounded-full flex items-center justify-center">\${index + 1}</span>
+                  <div>
+                    <p class="text-sm font-medium text-gray-800 truncate" style="max-width: 200px;" title="\${page.title}">\${page.title}</p>
+                    <p class="text-xs text-gray-500 truncate" style="max-width: 200px;" title="\${page.path}">\${page.path}</p>
+                  </div>
+                </div>
+                <span class="text-sm font-semibold text-gray-600">\${page.pageViews.toLocaleString()}</span>
+              \`;
+              topPagesContainer.appendChild(pageElement);
+            });
+            
+            // Mostrar países
+            const countriesContainer = document.getElementById('ga4-countries');
+            countriesContainer.innerHTML = '';
+            
+            ga4Data.demographics.countries.slice(0, 5).forEach((country, index) => {
+              const countryElement = document.createElement('div');
+              countryElement.className = 'flex items-center justify-between p-2 bg-white rounded border';
+              countryElement.innerHTML = \`
+                <div class="flex items-center space-x-2">
+                  <span class="w-6 h-6 bg-blue-100 text-blue-600 text-xs font-bold rounded-full flex items-center justify-center">\${index + 1}</span>
+                  <span class="text-sm font-medium text-gray-800">\${country.name}</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-600">\${country.users.toLocaleString()}</span>
+              \`;
+              countriesContainer.appendChild(countryElement);
+            });
+            
+            // Mostrar fuentes de tráfico
+            const trafficContainer = document.getElementById('ga4-traffic-sources');
+            trafficContainer.innerHTML = '';
+            
+            ga4Data.traffic.slice(0, 4).forEach(source => {
+              const sourceElement = document.createElement('div');
+              sourceElement.className = 'bg-white rounded-lg p-3 border text-center';
+              sourceElement.innerHTML = \`
+                <p class="text-xs font-medium text-gray-600 uppercase">\${source.channel}</p>
+                <p class="text-lg font-bold text-gray-900">\${source.sessions.toLocaleString()}</p>
+                <p class="text-xs text-gray-500">\${source.users.toLocaleString()} usuarios</p>
+              \`;
+              trafficContainer.appendChild(sourceElement);
+            });
+            
+            // Mostrar contenido y ocultar loading
+            document.getElementById('analytics-loading').classList.add('hidden');
+            document.getElementById('analytics-content').classList.remove('hidden');
+            
+            console.log('✅ Datos GA4 cargados correctamente');
+            
+          } catch (error) {
+            console.error('❌ Error cargando Google Analytics:', error.message);
+            
+            // Mostrar error state
+            document.getElementById('analytics-loading').classList.add('hidden');
+            document.getElementById('analytics-content').classList.add('hidden');
+            document.getElementById('analytics-error').classList.remove('hidden');
+            document.getElementById('analytics-error-message').textContent = error.message;
           }
         }
 
@@ -4364,6 +4594,38 @@ const server = http.createServer(async (req, res) => {
       });
       return;
       
+    } else if (pathname === '/api/analytics') {
+      // API Google Analytics 4 (protegida)
+      authMiddleware(req, res, async () => {
+        try {
+          const dateRange = parseInt(query.days) || 7;
+          console.log(`🔍 Obteniendo datos GA4 para ${dateRange} días...`);
+          
+          const ga4Data = await getGA4Insights(dateRange);
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            data: ga4Data,
+            message: `Datos GA4 obtenidos para los últimos ${dateRange} días`
+          }));
+        } catch (error) {
+          console.error('❌ Error GA4 API:', error.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message,
+            data: {
+              users: { totalUsers: 0, newUsers: 0, returningUsers: 0, error: 'GA4 no disponible' },
+              pages: [],
+              demographics: { countries: [], cities: [], devices: [] },
+              traffic: []
+            }
+          }));
+        }
+      });
+      return;
+      
     } else if (pathname === '/api/chat' && req.method === 'POST') {
       // API Chat (protegida)
       let body = '';
@@ -4630,6 +4892,11 @@ const initializeServer = async () => {
   console.log('🔧 Probando conexión PostgreSQL...');
   const pgConnected = await testConnection();
   
+  // Inicializar Google Analytics 4
+  console.log('🔧 Inicializando Google Analytics 4...');
+  const ga4Client = initializeGA4Client();
+  const ga4Connected = ga4Client ? await testGA4Connection() : false;
+  
   const PORT = process.env.PORT || 3001;
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Adaptoheal Analytics Dashboard iniciado en puerto ${PORT}`);
@@ -4638,6 +4905,7 @@ const initializeServer = async () => {
     console.log(`🤖 Chat IA habilitado con OpenAI GPT-4o-mini`);
     console.log(`🛒 Conectado a WooCommerce: ${WOOCOMMERCE_URL}`);
     console.log(`🗄️ PostgreSQL: ${pgConnected ? '✅ Conectado' : '❌ Desconectado'}`);
+    console.log(`📊 Google Analytics 4: ${ga4Connected ? '✅ Conectado' : '❌ Desconectado'}`);
     console.log(`📝 Máximo usuarios permitidos: ${process.env.MAX_USERS || 5}`);
   });
 };
