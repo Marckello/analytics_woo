@@ -369,7 +369,7 @@ const calculatePercentageChange = (current, previous) => {
 const handleDashboard = async (query) => {
   try {
     // NUEVO: Obtener período de los parámetros de query o fechas personalizadas
-    const periodParam = query.period || 'august-september-2025';
+    const periodParam = query.period || 'october-2025';
     const comparisonPeriodParam = query.comparison_period || 'auto';
     const customStartDate = query.start_date;
     const customEndDate = query.end_date;
@@ -408,11 +408,7 @@ const handleDashboard = async (query) => {
         endDate = new Date('2025-09-30T23:59:59Z').toISOString();
         periodLabel = 'Septiembre 2025';
         break;
-      case 'august-september-2025':
-        startDate = new Date('2025-08-01T00:00:00Z').toISOString();
-        endDate = new Date('2025-09-30T23:59:59Z').toISOString();
-        periodLabel = 'Agosto - Septiembre 2025';
-        break;
+
       case 'last-30-days':
         endDate = new Date().toISOString();
         startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -459,10 +455,15 @@ const handleDashboard = async (query) => {
         periodLabel = `Ayer (${yesterdayMxStr})`;
         break;
       case 'august-2025':
-      default:
         startDate = new Date('2025-08-01T00:00:00Z').toISOString();
         endDate = new Date('2025-08-31T23:59:59Z').toISOString();
         periodLabel = 'Agosto 2025';
+        break;
+      case 'october-2025':
+      default:
+        startDate = new Date('2025-10-01T00:00:00Z').toISOString();
+        endDate = new Date('2025-10-31T23:59:59Z').toISOString();
+        periodLabel = 'Octubre 2025';
         break;
       }
     }
@@ -1392,14 +1393,9 @@ const getHTML = () => {
                                 <optgroup label="📆 Períodos Mensuales" style="color: #1f2937; font-weight: bold;">
                                     <option value="this-month" style="color: #1f2937; background: white;">📅 Este mes</option>
                                     <option value="last-month" style="color: #1f2937; background: white;">📅 Mes anterior</option>
-                                </optgroup>
-                                
-                                <!-- Períodos Específicos de Adaptoheal -->
-                                <optgroup label="🏥 Períodos Adaptoheal" style="color: #1f2937; font-weight: bold;">
-                                    <option value="october-2025" style="color: #1f2937; background: white;">🎯 Octubre 2025</option>
-                                    <option value="august-2025" style="color: #1f2937; background: white;">🎯 Agosto 2025</option>
-                                    <option value="september-2025" style="color: #1f2937; background: white;">🎯 Septiembre 2025</option>
-                                    <option value="august-september-2025" selected style="color: #1f2937; background: white;">📊 Agosto - Septiembre 2025</option>
+                                    <option value="august-2025" style="color: #1f2937; background: white;">📊 Agosto 2025</option>
+                                    <option value="september-2025" style="color: #1f2937; background: white;">📊 Septiembre 2025</option>
+                                    <option value="october-2025" selected style="color: #1f2937; background: white;">📊 Octubre 2025</option>
                                 </optgroup>
                                 
                                 <!-- Rango Personalizado -->
@@ -2132,7 +2128,7 @@ const getHTML = () => {
         <script>
         // Variables globales
         let dashboardData = null;
-        let activePeriod = 'august-september-2025';
+        let activePeriod = 'october-2025';
         let comparisonEnabled = true; // Simplificado: solo on/off
         let customDateRange = null;
 
@@ -2226,9 +2222,7 @@ const getHTML = () => {
             case 'september-2025':
               comparisonText = 'vs Agosto 2025';
               break;
-            case 'august-september-2025':
-              comparisonText = 'vs Junio-Julio 2025';
-              break;
+
             case 'custom':
               comparisonText = 'vs Período anterior equivalente';
               break;
@@ -2752,9 +2746,7 @@ const getHTML = () => {
             case 'october-2025':
               periodLabel = 'Octubre 2025';
               break;
-            case 'august-september-2025':
-              periodLabel = 'Agosto - Septiembre 2025';
-              break;
+
             case 'august-2025':
               periodLabel = 'Agosto 2025';
               break;
