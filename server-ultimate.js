@@ -3452,7 +3452,7 @@ const getHTML = () => {
           // Badge de diferencia (verde si ahorro, rojo si costo extra)
           const isPositive = shippingData.costDifference >= 0;
           const badgeClass = isPositive ? 'text-red-600 bg-red-100' : 'text-green-600 bg-green-100';
-          document.getElementById('shipping-difference-badge').className = `text-xs font-bold ${badgeClass} px-2 py-1 rounded-full`;
+          document.getElementById('shipping-difference-badge').className = 'text-xs font-bold ' + badgeClass + ' px-2 py-1 rounded-full';
           document.getElementById('shipping-difference-badge').textContent = (isPositive ? '+' : '') + formatCurrency(shippingData.costDifference);
           
           // Carriers
@@ -3521,26 +3521,26 @@ const getHTML = () => {
           // Top Órdenes Costosas
           if (freeShippingData.topFreeShippingOrders && freeShippingData.topFreeShippingOrders.length > 0) {
             const topOrdersHTML = freeShippingData.topFreeShippingOrders.map((order, index) => {
-              return `
+              return \`
                 <div class="flex items-center justify-between p-3 bg-white rounded-lg border border-red-100">
                   <div class="flex items-center space-x-3">
                     <div class="flex-shrink-0">
                       <span class="inline-flex items-center justify-center w-8 h-8 bg-red-100 text-red-600 rounded-full text-sm font-bold">
-                        ${index + 1}
+                        \${index + 1}
                       </span>
                     </div>
                     <div>
-                      <p class="text-sm font-medium text-gray-900">Orden #${order.orderId}</p>
-                      <p class="text-xs text-gray-500">${order.customerEmail}</p>
-                      <p class="text-xs text-red-600">${order.couponCodes.join(', ')}</p>
+                      <p class="text-sm font-medium text-gray-900">Orden #\${order.orderId}</p>
+                      <p class="text-xs text-gray-500">\${order.customerEmail}</p>
+                      <p class="text-xs text-red-600">\${order.couponCodes.join(', ')}</p>
                     </div>
                   </div>
                   <div class="text-right">
-                    <p class="text-sm font-bold text-red-600">${formatCurrency(order.realCost)}</p>
-                    <p class="text-xs text-gray-500">Orden: ${formatCurrency(order.orderTotal)}</p>
+                    <p class="text-sm font-bold text-red-600">\${formatCurrency(order.realCost)}</p>
+                    <p class="text-xs text-gray-500">Orden: \${formatCurrency(order.orderTotal)}</p>
                   </div>
                 </div>
-              `;
+              \`;
             }).join('');
             
             document.getElementById('top-free-shipping-orders').innerHTML = topOrdersHTML;
