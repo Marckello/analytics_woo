@@ -2939,9 +2939,6 @@ const getHTML = () => {
             
             // Habilitar chat después de cargar datos
             enableChat();
-            
-            // Cargar datos de Google Analytics 4
-            loadAnalytics();
 
           } catch (error) {
             console.error('Error loading dashboard:', error);
@@ -3028,10 +3025,23 @@ const getHTML = () => {
           try {
             console.log('🔍 Cargando datos de Google Analytics 4...');
             
+            // Verificar que los elementos existan
+            const loadingElement = document.getElementById('analytics-loading');
+            const contentElement = document.getElementById('analytics-content');
+            const errorElement = document.getElementById('analytics-error');
+            
+            if (!loadingElement || !contentElement || !errorElement) {
+              console.error('❌ Elementos GA4 no encontrados en el DOM');
+              console.error('Loading element:', loadingElement);
+              console.error('Content element:', contentElement);
+              console.error('Error element:', errorElement);
+              return;
+            }
+            
             // Mostrar loading state
-            document.getElementById('analytics-loading').classList.remove('hidden');
-            document.getElementById('analytics-content').classList.add('hidden');
-            document.getElementById('analytics-error').classList.add('hidden');
+            loadingElement.classList.remove('hidden');
+            contentElement.classList.add('hidden');
+            errorElement.classList.add('hidden');
             
             // Hacer request a GA4 API (7 días por defecto)
             const response = await axios.get('/api/analytics?days=7');
@@ -3974,6 +3984,10 @@ const getHTML = () => {
           // Intentar cargar dashboard directamente
           console.log('Token válido, cargando dashboard...');
           await loadDashboard();
+          
+          // Cargar datos de Google Analytics 4
+          console.log('Cargando datos de Google Analytics 4...');
+          await loadAnalytics();
         });
         
         // === GESTIÓN DE USUARIOS ===
