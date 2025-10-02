@@ -1244,6 +1244,8 @@ const getHTML = () => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Adaptoheal Analytics - Dashboard Inteligente</title>
+        <link rel="icon" type="image/webp" href="https://www.adaptohealmx.com/wp-content/uploads/2025/05/favicon.webp">
+        <link rel="shortcut icon" type="image/webp" href="https://www.adaptohealmx.com/wp-content/uploads/2025/05/favicon.webp">
         <script src="https://cdn.tailwindcss.com"></script>
         <script>
           tailwind.config = {
