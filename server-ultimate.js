@@ -26,6 +26,10 @@ const WOOCOMMERCE_CONSUMER_SECRET = process.env.WOOCOMMERCE_CONSUMER_SECRET || '
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
+// Configuración de Envia.com API
+const ENVIA_API_KEY = process.env.ENVIA_API_KEY || '6675cfeae62ee00d9bbb96c8648d4576b6d8bf0cdc3b00c56ab8502b2964236a';
+const ENVIA_BASE_URL = 'https://queries.envia.com'; // URL base común para APIs de Envia
+
 // Función para autenticar con WooCommerce
 const getWooCommerceAuth = () => {
   const credentials = Buffer.from(`${WOOCOMMERCE_CONSUMER_KEY}:${WOOCOMMERCE_CONSUMER_SECRET}`).toString('base64');
@@ -38,6 +42,114 @@ const getWooCommerceAuth = () => {
 // Sistema de caché simple para WooCommerce (5 minutos de duración)
 const wooCache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+
+// Función para consultar Envia.com API
+const fetchEnviaData = async (endpoint, options = {}) => {
+  const url = `${ENVIA_BASE_URL}/${endpoint}`;
+  
+  try {
+    console.log(`🚚 Fetching from Envia.com: ${endpoint}`);
+    const response = await fetch(url, {
+      method: options.method || 'GET',
+      headers: {
+        'Authorization': `Bearer ${ENVIA_API_KEY}`,
+        'Content-Type': 'application/json',
+        ...options.headers
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Envia API error: ${response.status} - ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching Envia data:', error);
+    throw error;
+  }
+};
+
+// Mapeo offline de costos reales desde el Excel de Envia.com (septiembre 2025)
+let enviaOrderMapping = null;
+
+// Función para cargar el mapeo de costos de Envia.com
+const loadEnviaOrderMapping = () => {
+  if (enviaOrderMapping) return enviaOrderMapping;
+  
+  try {
+    const mappingPath = path.join(__dirname, 'envia_order_mapping.json');
+    if (fs.existsSync(mappingPath)) {
+      const mappingData = fs.readFileSync(mappingPath, 'utf8');
+      enviaOrderMapping = JSON.parse(mappingData);
+      console.log(`📦 Mapeo de Envia.com cargado: ${Object.keys(enviaOrderMapping).length} órdenes`);
+      return enviaOrderMapping;
+    } else {
+      console.log('⚠️  Archivo de mapeo de Envia.com no encontrado');
+      return {};
+    }
+  } catch (error) {
+    console.error('Error cargando mapeo de Envia.com:', error);
+    return {};
+  }
+};
+
+// Función para obtener costos de envío por referencia de orden
+const getShippingCostByOrderReference = async (orderReference) => {
+  try {
+    // PRIMERA OPCIÓN: Usar mapeo offline con datos reales del Excel
+    const mapping = loadEnviaOrderMapping();
+    const orderIdStr = orderReference.toString();
+    
+    if (mapping[orderIdStr]) {
+      const orderData = mapping[orderIdStr];
+      return {
+        found: true,
+        cost: orderData.total_cost,
+        carrier: 'Estafeta/DHL', // Basado en el análisis del Excel
+        service: 'Ground',
+        tracking_number: null,
+        shipments_count: orderData.shipments_count,
+        source: 'offline_mapping' // Identificar la fuente
+      };
+    }
+    
+    // SEGUNDA OPCIÓN: Intentar API en tiempo real (para órdenes no en el mapeo)
+    const possibleEndpoints = [
+      `shipments?reference=${orderReference}`,
+      `shipments/search?reference=${orderReference}`,
+      `orders/${orderReference}`,
+      `v1/shipments?reference=${orderReference}`
+    ];
+    
+    for (const endpoint of possibleEndpoints) {
+      try {
+        const data = await fetchEnviaData(endpoint);
+        if (data && data.shipments && data.shipments.length > 0) {
+          const shipment = data.shipments[0];
+          return {
+            found: true,
+            cost: shipment.cost || shipment.price || shipment.total_price || 0,
+            carrier: shipment.carrier_name || shipment.carrier || 'Unknown',
+            service: shipment.service_name || shipment.service || 'Standard',
+            tracking_number: shipment.tracking_number || null,
+            source: 'api_realtime'
+          };
+        }
+      } catch (err) {
+        // Continuar con el siguiente endpoint si este falla
+        console.log(`❌ Endpoint ${endpoint} failed:`, err.message);
+        continue;
+      }
+    }
+    
+    return { found: false, cost: 0, message: 'Shipment not found in Envia.com', source: 'not_found' };
+  } catch (error) {
+    console.error('Error getting shipping cost:', error);
+    return { found: false, cost: 0, error: error.message, source: 'error' };
+  }
+};
 
 
 
@@ -913,7 +1025,122 @@ const handleDashboard = async (query) => {
       comparativeData = null;
     }
 
+    // ================================
+    // NUEVO: PROCESAMIENTO DE COSTOS DE ENVÍO DESDE ENVIA.COM
+    // ================================
+    
+    const shippingStats = {
+      totalRealCost: 0,
+      totalWooCommerceCost: 0,
+      ordersWithShipping: 0,
+      carriers: {},
+      savings: 0,
+      found: 0,
+      notFound: 0,
+      details: [],
+      sources: {
+        offline_mapping: 0,
+        api_realtime: 0,
+        not_found: 0
+      }
+    };
+    
+    console.log(`🚚 Iniciando análisis de costos de envío para ${orders.length} órdenes...`);
+    
+    // Cargar mapeo offline al inicio
+    const mapping = loadEnviaOrderMapping();
+    console.log(`📦 Mapeo offline cargado con ${Object.keys(mapping).length} órdenes`);
+    
+    // Procesar costos de envío para cada orden
+    for (const order of orders) {
+      const orderReference = order.id.toString();
+      const wooShippingCost = parseFloat(order.shipping_total) || 0;
+      
+      // Procesar todas las órdenes que pueden tener envío (no solo las con shipping_total > 0)
+      // Porque en Adaptoheal muchas son envío "gratuito" pero tienen costo real
+      if (wooShippingCost >= 0 || (order.shipping_lines && order.shipping_lines.length > 0)) {
+        try {
+          const enviaResult = await getShippingCostByOrderReference(orderReference);
+          
+          shippingStats.ordersWithShipping++;
+          shippingStats.totalWooCommerceCost += wooShippingCost;
+          
+          // Contar fuentes de datos
+          if (enviaResult.source) {
+            shippingStats.sources[enviaResult.source]++;
+          }
+          
+          if (enviaResult.found) {
+            const realCost = parseFloat(enviaResult.cost) || 0;
+            shippingStats.totalRealCost += realCost;
+            shippingStats.found++;
+            
+            // Agregar estadísticas por carrier
+            const carrier = enviaResult.carrier || 'Unknown';
+            if (!shippingStats.carriers[carrier]) {
+              shippingStats.carriers[carrier] = {
+                name: carrier,
+                totalCost: 0,
+                ordersCount: 0,
+                avgCost: 0
+              };
+            }
+            shippingStats.carriers[carrier].totalCost += realCost;
+            shippingStats.carriers[carrier].ordersCount++;
+            
+            // Guardar detalle para debugging
+            shippingStats.details.push({
+              orderId: order.id,
+              wooShipping: wooShippingCost,
+              realCost: realCost,
+              carrier: carrier,
+              service: enviaResult.service,
+              tracking: enviaResult.tracking_number,
+              difference: realCost - wooShippingCost,
+              source: enviaResult.source,
+              shipmentsCount: enviaResult.shipments_count || 1
+            });
+            
+            const source_emoji = enviaResult.source === 'offline_mapping' ? '📦' : '🌐';
+            console.log(`✅ ${source_emoji} Orden ${orderReference}: WooCommerce $${wooShippingCost} vs Envia $${realCost} (${carrier})`);
+          } else {
+            shippingStats.notFound++;
+            console.log(`❌ Orden ${orderReference}: No encontrado en Envia.com`);
+          }
+        } catch (error) {
+          shippingStats.notFound++;
+          console.error(`Error procesando envío para orden ${orderReference}:`, error.message);
+        }
+        
+        // Solo pausa si usamos API en tiempo real
+        if (!mapping[orderReference]) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      }
+    }
+    
+    // Calcular métricas finales de envío
+    shippingStats.savings = shippingStats.totalRealCost - shippingStats.totalWooCommerceCost;
+    shippingStats.avgRealCost = shippingStats.found > 0 ? shippingStats.totalRealCost / shippingStats.found : 0;
+    shippingStats.avgWooCommerceCost = shippingStats.ordersWithShipping > 0 ? shippingStats.totalWooCommerceCost / shippingStats.ordersWithShipping : 0;
+    
+    // Calcular promedios por carrier
+    Object.values(shippingStats.carriers).forEach(carrier => {
+      carrier.avgCost = carrier.ordersCount > 0 ? carrier.totalCost / carrier.ordersCount : 0;
+    });
+    
+    console.log(`📊 Análisis de envíos completado:`);
+    console.log(`   - Órdenes con envío: ${shippingStats.ordersWithShipping}`);
+    console.log(`   - Encontrados en Envia.com: ${shippingStats.found}`);
+    console.log(`   - No encontrados: ${shippingStats.notFound}`);
+    console.log(`   - Fuentes: Mapeo offline ${shippingStats.sources.offline_mapping}, API ${shippingStats.sources.api_realtime}`);
+    console.log(`   - Costo real total: $${shippingStats.totalRealCost.toFixed(2)} MXN`);
+    console.log(`   - Costo WooCommerce: $${shippingStats.totalWooCommerceCost.toFixed(2)} MXN`);
+    console.log(`   - Diferencia (ahorro real): $${shippingStats.savings.toFixed(2)} MXN`);
+    
+    // ================================
     // PROCESAMIENTO DE CUPONES
+    // ================================
     const couponsStats = {};
     let totalCouponsAmount = 0;
     let totalCouponsOrders = 0;
@@ -1056,6 +1283,26 @@ const handleDashboard = async (query) => {
             avgDiscountPerOrder: totalCouponsOrders > 0 ? totalCouponsAmount / totalCouponsOrders : 0,
             percentageOfTotalSales: totalSales > 0 ? (totalCouponsAmount / totalSales * 100).toFixed(1) : '0'
           }
+        },
+        
+        // NUEVO: COSTOS DE ENVÍO REALES DESDE ENVIA.COM
+        shippingCosts: {
+          totalRealCost: shippingStats.totalRealCost,
+          totalWooCommerceCost: shippingStats.totalWooCommerceCost,
+          ordersWithShipping: shippingStats.ordersWithShipping,
+          found: shippingStats.found,
+          notFound: shippingStats.notFound,
+          avgRealCost: shippingStats.avgRealCost,
+          avgWooCommerceCost: shippingStats.avgWooCommerceCost,
+          costDifference: shippingStats.savings,
+          carriers: Object.values(shippingStats.carriers).sort((a, b) => b.totalCost - a.totalCost),
+          summary: {
+            coveragePercentage: shippingStats.ordersWithShipping > 0 ? (shippingStats.found / shippingStats.ordersWithShipping * 100).toFixed(1) : '0',
+            avgCostPerOrder: shippingStats.found > 0 ? (shippingStats.totalRealCost / shippingStats.found).toFixed(2) : '0',
+            percentageOfTotalSales: totalSales > 0 ? (shippingStats.totalRealCost / totalSales * 100).toFixed(2) : '0',
+            estimatedMonthlyCost: shippingStats.avgRealCost * 30 // Estimación mensual basada en promedio
+          },
+          topShipments: shippingStats.details.sort((a, b) => b.realCost - a.realCost).slice(0, 5)
         },
         
         // DATOS COMPARATIVOS CON PERÍODO ANTERIOR
@@ -3576,6 +3823,20 @@ const server = http.createServer(async (req, res) => {
       }
       return;
       
+    } else if (pathname === '/test-shipping') {
+      // Página de prueba para integración de costos de envío
+      const filePath = path.join(__dirname, 'test-shipping.html');
+      fs.readFile(filePath, 'utf8', (err, data) => {
+        if (err) {
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Página no encontrada');
+        } else {
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(data);
+        }
+      });
+      return;
+      
     } else if (pathname === '/api/login' && req.method === 'POST') {
       // API Login
       let body = '';
@@ -3642,6 +3903,137 @@ const server = http.createServer(async (req, res) => {
       });
       return;
       
+    } else if (pathname === '/api/debug-order' && req.method === 'GET') {
+      // TEMPORAL: Debug para ver estructura completa de orden
+      authMiddleware(req, res, async () => {
+        try {
+          const orderId = query.order_id || '13786';
+          const orderData = await fetchWooCommerceData(`orders/${orderId}`);
+          
+          console.log('🔍 Estructura de orden completa - shipping_lines:', orderData.shipping_lines);
+          console.log('🔍 Shipping total:', orderData.shipping_total);
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: true, 
+            order_id: orderId,
+            shipping_lines: orderData.shipping_lines || [],
+            shipping_total: orderData.shipping_total || '0',
+            shipping_methods: orderData.shipping_lines?.map(line => ({
+              method_title: line.method_title,
+              method_id: line.method_id,
+              total: line.total
+            })) || []
+          }));
+        } catch (error) {
+          console.error('Error obteniendo orden:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: error.message }));
+        }
+      });
+      return;
+      
+    } else if (pathname === '/api/envia-test-public' && req.method === 'GET') {
+      // TEMPORAL: Test público de conexión con Envia.com (sin autenticación)
+      try {
+        const orderReference = query.order_ref || '13786';
+        console.log(`🧪 Public test: Testing Envia.com API with order reference: ${orderReference}`);
+        
+        const testEndpoints = ['shipments', 'v1/shipments', 'orders'];
+        const results = [];
+        
+        for (const endpoint of testEndpoints) {
+          try {
+            const data = await fetchEnviaData(endpoint);
+            results.push({
+              endpoint: endpoint,
+              status: 'success',
+              dataCount: Array.isArray(data.shipments) ? data.shipments.length : 0,
+              sample: Array.isArray(data.shipments) && data.shipments.length > 0 ? data.shipments[0] : null
+            });
+          } catch (error) {
+            results.push({
+              endpoint: endpoint,
+              status: 'error',
+              error: error.message
+            });
+          }
+        }
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          message: `Prueba de Envia.com API completada`,
+          orderReference: orderReference,
+          results: results,
+          timestamp: new Date().toISOString()
+        }));
+      } catch (error) {
+        console.error('Public Envia test error:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: 'Error en prueba pública de Envia.com',
+          details: error.message 
+        }));
+      }
+      return;
+      
+    } else if (pathname === '/api/envia-test' && req.method === 'GET') {
+      // TEMPORAL: Test de conexión con Envia.com
+      authMiddleware(req, res, async () => {
+        try {
+          const orderReference = query.order_ref || '13786'; // Usar orden de ejemplo
+          
+          console.log(`🧪 Testing Envia.com API with order reference: ${orderReference}`);
+          
+          // Probar diferentes endpoints
+          const testEndpoints = [
+            'shipments',
+            'v1/shipments', 
+            'orders',
+            `shipments?reference=${orderReference}`
+          ];
+          
+          const results = [];
+          
+          for (const endpoint of testEndpoints) {
+            try {
+              const data = await fetchEnviaData(endpoint);
+              results.push({
+                endpoint,
+                status: 'success',
+                data_keys: Object.keys(data || {}),
+                sample_data: data
+              });
+            } catch (error) {
+              results.push({
+                endpoint,
+                status: 'error',
+                error: error.message
+              });
+            }
+          }
+          
+          // También probar obtener costo por orden
+          const shippingCost = await getShippingCostByOrderReference(orderReference);
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: true,
+            api_key_length: ENVIA_API_KEY.length,
+            base_url: ENVIA_BASE_URL,
+            test_results: results,
+            shipping_cost_test: shippingCost
+          }));
+        } catch (error) {
+          console.error('Error testing Envia API:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: error.message }));
+        }
+      });
+      return;
+      
     } else if (pathname === '/api/users' && req.method === 'POST') {
       // Agregar usuario (solo admin)
       let body = '';
@@ -3683,6 +4075,24 @@ const server = http.createServer(async (req, res) => {
       });
       return;
       
+    } else if (pathname === '/api/dashboard-public') {
+      // TEMPORAL: Dashboard público para pruebas (sin autenticación)
+      try {
+        console.log('🧪 Public dashboard test - getting shipping costs data...');
+        const result = await handleDashboard(query);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (error) {
+        console.error('Public Dashboard API error:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: 'Error obteniendo datos del dashboard público',
+          details: error.message 
+        }));
+      }
+      return;
+      
     } else if (pathname === '/api/dashboard') {
       // API Dashboard (protegida)
       authMiddleware(req, res, async () => {
@@ -3711,6 +4121,78 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify({ success: false, error: 'Error procesando chat' }));
           }
         });
+      });
+      return;
+      
+    } else if (pathname === '/api/test-order-shipping-public') {
+      // TEMPORAL: Versión pública para inspeccionar datos de orden (sin autenticación)
+      try {
+        const orderId = query.order_id || '13784';
+        console.log(`🔍 Public test: Analyzing order ${orderId} shipping data...`);
+        
+        const orderData = await fetchWooCommerceData(`orders/${orderId}`);
+        const enviaShippingCost = await getShippingCostByOrderReference(orderId);
+        
+        const shippingInfo = {
+          order_id: orderData.id,
+          total: orderData.total,
+          shipping_total: orderData.shipping_total,
+          shipping_tax: orderData.shipping_tax,
+          shipping_lines: orderData.shipping_lines,
+          coupons: orderData.coupon_lines,
+          envia_shipping_cost: enviaShippingCost,
+          comparison: {
+            woocommerce_cost: parseFloat(orderData.shipping_total) || 0,
+            envia_real_cost: enviaShippingCost.found ? parseFloat(enviaShippingCost.cost) || 0 : 0,
+            difference: enviaShippingCost.found ? 
+              (parseFloat(enviaShippingCost.cost) || 0) - (parseFloat(orderData.shipping_total) || 0) : null
+          }
+        };
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(shippingInfo));
+      } catch (error) {
+        console.error('Public order shipping test error:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: 'Error obteniendo datos de orden',
+          details: error.message 
+        }));
+      }
+      return;
+      
+    } else if (pathname === '/api/test-order-shipping') {
+      // TEMPORAL: Inspeccionar datos completos de orden para ver shipping
+      authMiddleware(req, res, async () => {
+        try {
+          const orderId = query.order_id || '13784'; // Usar orden de ejemplo o la especificada
+          const orderData = await fetchWooCommerceData(`orders/${orderId}`);
+          
+          // Extraer solo los campos relevantes de shipping
+          const shippingInfo = {
+            order_id: orderData.id,
+            total: orderData.total,
+            shipping_total: orderData.shipping_total,
+            shipping_tax: orderData.shipping_tax,
+            shipping_lines: orderData.shipping_lines,
+            coupons: orderData.coupon_lines,
+            meta_data: orderData.meta_data?.filter(meta => 
+              meta.key?.toLowerCase().includes('shipping') || 
+              meta.key?.toLowerCase().includes('tracking')
+            )
+          };
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, shipping_info: shippingInfo }));
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: 'Error obteniendo datos de envío',
+            details: error.message 
+          }));
+        }
       });
       return;
       
