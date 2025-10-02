@@ -19,6 +19,15 @@ const {
   initializeAuth
 } = require('./auth.js');
 
+// Importar módulo de base de datos PostgreSQL
+const {
+  getShippingDataByOrderId,
+  getBulkShippingCosts,
+  getShippingStats,
+  getAllShipments,
+  testConnection
+} = require('./database.js');
+
 // Configuración - usando las mismas variables de entorno
 const WOOCOMMERCE_URL = process.env.WOOCOMMERCE_URL || 'https://adaptohealmx.com';
 const WOOCOMMERCE_CONSUMER_KEY = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
@@ -67,31 +76,42 @@ const loadEnviaOrderMapping = () => {
   }
 };
 
-// Función para obtener costos de envío por referencia de orden
+// Función para obtener costos de envío por referencia de orden (SOLO PostgreSQL - SIN FALLBACKS)
 const getShippingCostByOrderReference = async (orderReference) => {
   try {
-    // SOLO USAR DATOS DEL EXCEL - SIN API DE ENVIA
-    const mapping = loadEnviaOrderMapping();
-    const orderIdStr = orderReference.toString();
+    console.log(`🔍 Buscando orden ${orderReference} en PostgreSQL...`);
     
-    if (mapping[orderIdStr]) {
-      const orderData = mapping[orderIdStr];
-      return {
-        found: true,
-        cost: orderData.total_cost,
-        carrier: 'Estafeta/DHL', // Basado en el análisis del Excel
-        service: 'Ground',
-        tracking_number: null,
-        shipments_count: orderData.shipments_count,
-        source: 'excel_data'
-      };
+    // Buscar SOLO en PostgreSQL - SIN fallbacks
+    const postgresResult = await getShippingDataByOrderId(orderReference);
+    
+    if (postgresResult.found) {
+      console.log(`✅ PostgreSQL: Orden ${orderReference} encontrada - Costo: $${postgresResult.cost}`);
+      return postgresResult;
     }
     
-    // Si no está en el Excel, no hay costo de envío
-    return { found: false, cost: 0, message: 'Orden no encontrada en datos del Excel', source: 'not_in_excel' };
+    // Si no se encuentra en PostgreSQL, NO mostrar datos
+    console.log(`❌ Orden ${orderReference} no encontrada en PostgreSQL - sin datos`);
+    return { 
+      found: false, 
+      cost: 0, // SIN COSTO - solo datos reales de PostgreSQL
+      message: 'Orden no encontrada en PostgreSQL', 
+      carrier: null,
+      service: null,
+      tracking_number: null,
+      source: 'not_found_in_postgres' 
+    };
   } catch (error) {
-    console.error('Error getting shipping cost:', error);
-    return { found: false, cost: 0, error: error.message, source: 'error' };
+    console.error('❌ Error conectando PostgreSQL:', error.message);
+    // En caso de error de conexión, NO mostrar datos
+    return { 
+      found: false, 
+      cost: 0, // SIN COSTO - requiere conexión PostgreSQL
+      error: error.message, 
+      message: 'Sin conexión PostgreSQL - sin datos de envío',
+      carrier: null,
+      service: null, 
+      source: 'postgres_disconnected' 
+    };
   }
 };
 
@@ -1107,6 +1127,9 @@ const handleDashboard = async (query) => {
     const freeShippingCodes = ['enviodist', 'envío gratis', 'envio gratis', 'free_shipping'];
     
     try {
+      // Primero, identificar todas las órdenes con cupones de envío gratis
+      const ordersWithFreeShipping = [];
+      
       // Procesar cupones desde las órdenes
       orders.forEach((order) => {
         if (order.coupon_lines && Array.isArray(order.coupon_lines) && order.coupon_lines.length > 0) {
@@ -1140,43 +1163,61 @@ const handleDashboard = async (query) => {
             }
           });
           
-          // Si tiene cupón de envío gratis, calcular el costo real que absorbiste
+          // Si tiene cupón de envío gratis, agregarlo a la lista para procesamiento bulk
           if (hasFreeShippingCoupon) {
-            const orderIdStr = order.id.toString();
-            const mapping = loadEnviaOrderMapping();
-            
-            if (mapping[orderIdStr]) {
-              const realShippingCost = mapping[orderIdStr].total_cost;
-              freeShippingCoupons.totalRealCost += realShippingCost;
-              freeShippingCoupons.totalOrders++;
-              
-              // Registrar por código de cupón
-              freeShippingCouponCodes.forEach(couponCode => {
-                if (!freeShippingCoupons.coupons[couponCode]) {
-                  freeShippingCoupons.coupons[couponCode] = {
-                    code: couponCode,
-                    totalRealCost: 0,
-                    ordersCount: 0,
-                    avgCostPerOrder: 0
-                  };
-                }
-                freeShippingCoupons.coupons[couponCode].totalRealCost += realShippingCost;
-                freeShippingCoupons.coupons[couponCode].ordersCount++;
-              });
-              
-              freeShippingCoupons.details.push({
-                orderId: order.id,
-                couponCodes: freeShippingCouponCodes,
-                realCost: realShippingCost,
-                customerEmail: order.billing.email,
-                orderTotal: parseFloat(order.total)
-              });
-              
-              console.log(`🆓➡️💰 Orden ${order.id}: Cupón envío gratis (${freeShippingCouponCodes.join(', ')}) = Costo real $${realShippingCost}`);
-            }
+            ordersWithFreeShipping.push({
+              order: order,
+              couponCodes: freeShippingCouponCodes
+            });
           }
         }
       });
+      
+      // Procesar órdenes con envío gratis usando PostgreSQL (bulk)
+      if (ordersWithFreeShipping.length > 0) {
+        const orderIds = ordersWithFreeShipping.map(item => item.order.id);
+        console.log(`🔍 Obteniendo costos de envío para ${orderIds.length} órdenes con cupones de envío gratis...`);
+        
+        const bulkShippingCosts = await getBulkShippingCosts(orderIds);
+        
+        ordersWithFreeShipping.forEach(({order, couponCodes}) => {
+          const shippingData = bulkShippingCosts[order.id];
+          const realShippingCost = shippingData ? shippingData.cost : 0; // SIN COSTO si no hay datos de PostgreSQL
+          
+          freeShippingCoupons.totalRealCost += realShippingCost;
+          freeShippingCoupons.totalOrders++;
+          
+          // Registrar por código de cupón
+          couponCodes.forEach(couponCode => {
+            if (!freeShippingCoupons.coupons[couponCode]) {
+              freeShippingCoupons.coupons[couponCode] = {
+                code: couponCode,
+                totalRealCost: 0,
+                ordersCount: 0,
+                avgCostPerOrder: 0
+              };
+            }
+            freeShippingCoupons.coupons[couponCode].totalRealCost += realShippingCost;
+            freeShippingCoupons.coupons[couponCode].ordersCount++;
+          });
+          
+          freeShippingCoupons.details.push({
+            orderId: order.id,
+            couponCodes: couponCodes,
+            realCost: realShippingCost,
+            customerEmail: order.billing.email,
+            orderTotal: parseFloat(order.total),
+            source: shippingData ? shippingData.source : 'standard_cost'
+          });
+          
+          const source = shippingData ? shippingData.source : 'no_postgres_data';
+          if (realShippingCost > 0) {
+            console.log(`✅ PostgreSQL: Orden ${order.id} cupón envío gratis (${couponCodes.join(', ')}) = $${realShippingCost} (${source})`);
+          } else {
+            console.log(`❌ Sin PostgreSQL: Orden ${order.id} cupón envío gratis (${couponCodes.join(', ')}) = $0 - requiere conexión DB`);
+          }
+        });
+      }
       
       // Convertir a array y calcular métricas
       Object.keys(couponsStats).forEach(code => {
@@ -1333,6 +1374,14 @@ const handleDashboard = async (query) => {
             estimatedMonthlyCost: shippingStats.avgRealCost * 30 // Estimación mensual basada en promedio
           },
           topShipments: shippingStats.details.sort((a, b) => b.realCost - a.realCost).slice(0, 5)
+        },
+        
+        // ESTADO DE CONEXIÓN POSTGRESQL
+        postgres: {
+          connected: await testConnection(),
+          status: (await testConnection()) ? 'connected' : 'disconnected',
+          message: (await testConnection()) ? 'PostgreSQL conectado - mostrando datos reales' : 'PostgreSQL desconectado - datos de envío no disponibles',
+          lastCheck: new Date().toISOString()
         },
         
         // DATOS COMPARATIVOS CON PERÍODO ANTERIOR
@@ -4207,6 +4256,42 @@ const server = http.createServer(async (req, res) => {
       });
       return;
       
+    } else if (pathname === '/api/test-postgres' && req.method === 'GET') {
+      // Endpoint para probar conexión PostgreSQL
+      authMiddleware(req, res, async () => {
+        try {
+          // Probar conexión
+          const connectionOk = await testConnection();
+          
+          // Obtener estadísticas de envíos
+          const stats = await getShippingStats();
+          
+          // Obtener algunas muestras de envíos
+          const samples = await getAllShipments(5);
+          
+          // Probar búsqueda por orden específica
+          const orderId = query.order_id || '13774';
+          const shippingData = await getShippingDataByOrderId(orderId);
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: true,
+            connection: connectionOk,
+            stats: stats,
+            samples: samples,
+            test_order: {
+              order_id: orderId,
+              result: shippingData
+            }
+          }));
+        } catch (error) {
+          console.error('Error testing PostgreSQL:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: error.message }));
+        }
+      });
+      return;
+      
     // Endpoints de prueba de Envia.com eliminados - usando solo datos del Excel
       
     // Endpoint de prueba de Envia.com eliminado - usando solo datos del Excel
@@ -4541,6 +4626,10 @@ const server = http.createServer(async (req, res) => {
 const initializeServer = async () => {
   await initializeAuth();
   
+  // Probar conexión PostgreSQL
+  console.log('🔧 Probando conexión PostgreSQL...');
+  const pgConnected = await testConnection();
+  
   const PORT = process.env.PORT || 3001;
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Adaptoheal Analytics Dashboard iniciado en puerto ${PORT}`);
@@ -4548,6 +4637,7 @@ const initializeServer = async () => {
     console.log(`🔐 Sistema de autenticación activado - Login: http://localhost:${PORT}/login`);
     console.log(`🤖 Chat IA habilitado con OpenAI GPT-4o-mini`);
     console.log(`🛒 Conectado a WooCommerce: ${WOOCOMMERCE_URL}`);
+    console.log(`🗄️ PostgreSQL: ${pgConnected ? '✅ Conectado' : '❌ Desconectado'}`);
     console.log(`📝 Máximo usuarios permitidos: ${process.env.MAX_USERS || 5}`);
   });
 };
