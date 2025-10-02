@@ -29,14 +29,8 @@ const getShippingDataByOrderId = async (orderId) => {
         created_at,
         shipped_at,
         delivered_at,
-        -- Buscar costo en columnas que probablemente existen
-        COALESCE(
-          CAST(cost_mxn AS NUMERIC),
-          CAST(cost AS NUMERIC), 
-          CAST(price AS NUMERIC), 
-          CAST(total AS NUMERIC),
-          127.0  -- Valor por defecto basado en Excel
-        ) as total_cost
+        -- Usar columna total que SÍ existe en PostgreSQL
+        CAST(total AS NUMERIC) as total_cost
       FROM reporte_envios_sept25 
       WHERE 
         CAST(order_number AS TEXT) = $1
@@ -99,20 +93,8 @@ const getShippingStats = async () => {
       SELECT 
         COUNT(*) as total_shipments,
         COUNT(DISTINCT name) as carriers_count,
-        AVG(COALESCE(
-          CAST(cost_mxn AS NUMERIC),
-          CAST(cost AS NUMERIC), 
-          CAST(price AS NUMERIC), 
-          CAST(total AS NUMERIC),
-          127.0
-        )) as avg_cost,
-        SUM(COALESCE(
-          CAST(cost_mxn AS NUMERIC),
-          CAST(cost AS NUMERIC), 
-          CAST(price AS NUMERIC), 
-          CAST(total AS NUMERIC),
-          127.0
-        )) as total_cost,
+        AVG(CAST(total AS NUMERIC)) as avg_cost,
+        SUM(CAST(total AS NUMERIC)) as total_cost,
         MIN(created_at) as first_shipment,
         MAX(created_at) as last_shipment
       FROM reporte_envios_sept25
@@ -136,13 +118,7 @@ const getAllShipments = async (limit = 10) => {
         name as carrier,
         status,
         created_at,
-        COALESCE(
-          CAST(cost_mxn AS NUMERIC),
-          CAST(cost AS NUMERIC), 
-          CAST(price AS NUMERIC), 
-          CAST(total AS NUMERIC),
-          127.0
-        ) as total_cost
+        CAST(total AS NUMERIC) as total_cost
       FROM reporte_envios_sept25 
       ORDER BY created_at DESC 
       LIMIT $1
@@ -173,13 +149,7 @@ const getBulkShippingCosts = async (orderIds) => {
         name as carrier,
         service,
         status,
-        COALESCE(
-          CAST(cost_mxn AS NUMERIC),
-          CAST(cost AS NUMERIC), 
-          CAST(price AS NUMERIC), 
-          CAST(total AS NUMERIC),
-          127.0
-        ) as total_cost,
+        CAST(total AS NUMERIC) as total_cost,
         created_at
       FROM reporte_envios_sept25 
       WHERE 
