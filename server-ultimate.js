@@ -39,6 +39,16 @@ const {
   testGA4Connection
 } = require('./google-analytics.js');
 
+// Importar módulo de Google Ads (Official Client)
+const {
+  initializeGoogleAdsClient,
+  getAccountInfo,
+  getCampaigns,
+  getAccountMetrics,
+  getGoogleAdsInsights,
+  testGoogleAdsConnection
+} = require('./google-ads-official.js');
+
 // Configuración - usando las mismas variables de entorno
 const WOOCOMMERCE_URL = process.env.WOOCOMMERCE_URL || 'https://adaptohealmx.com';
 const WOOCOMMERCE_CONSUMER_KEY = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
@@ -2073,6 +2083,121 @@ const getHTML = () => {
                     </div>
                 </div>
 
+                <!-- NUEVA SECCIÓN: Google Ads -->
+                <div class="glass-effect rounded-xl p-8 card-hover">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-red-500 to-pink-600">
+                                <i class="fab fa-google text-xl text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">Google Ads</h3>
+                                <p class="text-sm text-gray-600">Campañas publicitarias, impresiones, clicks y conversiones</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-medium text-red-600 bg-red-100 px-3 py-1 rounded-full">
+                            <i class="fas fa-ad mr-1"></i>ADS
+                        </span>
+                    </div>
+                    
+                    <div id="google-ads-section">
+                        <!-- Loading state -->
+                        <div id="google-ads-loading" class="text-center py-8">
+                            <i class="fas fa-spinner fa-spin text-2xl text-gray-400 mb-3"></i>
+                            <p class="text-sm text-gray-500">Cargando datos de Google Ads...</p>
+                        </div>
+                        
+                        <!-- Google Ads content -->
+                        <div id="google-ads-content" class="hidden">
+                            <!-- Métricas principales -->
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                                <div class="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 border border-red-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-red-500 rounded-lg">
+                                            <i class="fas fa-eye text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Impresiones</p>
+                                            <p id="google-ads-impressions" class="text-xl font-bold text-gray-900">0</p>
+                                            <p class="text-xs text-gray-500">últimos 30 días</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-blue-500 rounded-lg">
+                                            <i class="fas fa-mouse-pointer text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Clicks</p>
+                                            <p id="google-ads-clicks" class="text-xl font-bold text-gray-900">0</p>
+                                            <p id="google-ads-ctr" class="text-xs text-gray-500">CTR: 0%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-green-500 rounded-lg">
+                                            <i class="fas fa-dollar-sign text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Costo Total</p>
+                                            <p id="google-ads-cost" class="text-xl font-bold text-gray-900">$0</p>
+                                            <p id="google-ads-cpc" class="text-xs text-gray-500">CPC: $0</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-purple-500 rounded-lg">
+                                            <i class="fas fa-star text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Conversiones</p>
+                                            <p id="google-ads-conversions" class="text-xl font-bold text-gray-900">0</p>
+                                            <p id="google-ads-conversion-rate" class="text-xs text-gray-500">Tasa: 0%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Campañas activas -->
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div class="bg-gray-50 rounded-xl p-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fas fa-bullhorn text-red-500 mr-2"></i>
+                                        Campañas Activas
+                                    </h4>
+                                    <div id="google-ads-campaigns" class="space-y-2">
+                                        <!-- Se llenará dinámicamente -->
+                                    </div>
+                                </div>
+                                
+                                <!-- Account Info -->
+                                <div class="bg-gray-50 rounded-xl p-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                                        Información de Cuenta
+                                    </h4>
+                                    <div id="google-ads-account-info" class="space-y-2">
+                                        <!-- Se llenará dinámicamente -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Error state -->
+                        <div id="google-ads-error" class="hidden text-center py-8">
+                            <i class="fas fa-exclamation-triangle text-3xl text-yellow-400 mb-3"></i>
+                            <p class="text-sm text-gray-500">Error cargando datos de Google Ads</p>
+                            <p id="google-ads-error-message" class="text-xs text-gray-400 mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- NUEVA SECCIÓN: Google Analytics 4 -->
                 <div class="glass-effect rounded-xl p-8 card-hover">
                     <div class="flex items-center justify-between mb-6">
@@ -3136,6 +3261,124 @@ const getHTML = () => {
           }
         }
 
+        // Función para cargar datos de Google Ads
+        async function loadGoogleAds() {
+          try {
+            console.log('🔍 Cargando datos de Google Ads...');
+            
+            // Verificar que los elementos existan
+            const loadingElement = document.getElementById('google-ads-loading');
+            const contentElement = document.getElementById('google-ads-content');
+            const errorElement = document.getElementById('google-ads-error');
+            
+            if (!loadingElement || !contentElement || !errorElement) {
+              console.error('❌ Elementos Google Ads no encontrados en el DOM');
+              return;
+            }
+            
+            // Mostrar loading state
+            loadingElement.classList.remove('hidden');
+            contentElement.classList.add('hidden');
+            errorElement.classList.add('hidden');
+            
+            // Hacer request a Google Ads API (30 días por defecto)
+            const response = await axios.get('/api/google-ads?days=30');
+            const result = response.data;
+            
+            if (!result.success) {
+              throw new Error(result.error || 'Error cargando datos Google Ads');
+            }
+            
+            const googleAdsData = result.data;
+            console.log('📊 Datos Google Ads recibidos:', googleAdsData);
+            
+            // Actualizar métricas principales
+            document.getElementById('google-ads-impressions').textContent = googleAdsData.metrics.impressions?.toLocaleString() || '0';
+            document.getElementById('google-ads-clicks').textContent = googleAdsData.metrics.clicks?.toLocaleString() || '0';
+            document.getElementById('google-ads-cost').textContent = formatCurrency(googleAdsData.metrics.cost || 0);
+            document.getElementById('google-ads-conversions').textContent = googleAdsData.metrics.conversions?.toLocaleString() || '0';
+            
+            // Calcular y mostrar métricas calculadas
+            const ctr = googleAdsData.metrics.impressions > 0 ? ((googleAdsData.metrics.clicks / googleAdsData.metrics.impressions) * 100).toFixed(2) : 0;
+            const cpc = googleAdsData.metrics.clicks > 0 ? (googleAdsData.metrics.cost / googleAdsData.metrics.clicks).toFixed(2) : 0;
+            const conversionRate = googleAdsData.metrics.clicks > 0 ? ((googleAdsData.metrics.conversions / googleAdsData.metrics.clicks) * 100).toFixed(2) : 0;
+            
+            document.getElementById('google-ads-ctr').textContent = 'CTR: ' + ctr + '%';
+            document.getElementById('google-ads-cpc').textContent = 'CPC: $' + cpc;
+            document.getElementById('google-ads-conversion-rate').textContent = 'Tasa: ' + conversionRate + '%';
+            
+            // Mostrar campañas
+            const campaignsContainer = document.getElementById('google-ads-campaigns');
+            campaignsContainer.innerHTML = '';
+            
+            if (googleAdsData.campaigns && googleAdsData.campaigns.length > 0) {
+              googleAdsData.campaigns.slice(0, 5).forEach((campaign, index) => {
+                const campaignElement = document.createElement('div');
+                campaignElement.className = 'flex items-center justify-between p-2 bg-white rounded border';
+                campaignElement.innerHTML = 
+                  '<div class="flex items-center space-x-2">' +
+                    '<span class="w-6 h-6 bg-red-100 text-red-600 text-xs font-bold rounded-full flex items-center justify-center">' + (index + 1) + '</span>' +
+                    '<div>' +
+                      '<p class="text-sm font-medium text-gray-800 truncate" style="max-width: 200px;" title="' + campaign.name + '">' + campaign.name + '</p>' +
+                      '<p class="text-xs text-gray-500">Estado: ' + campaign.status + '</p>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="text-right">' +
+                    '<span class="text-sm font-semibold text-gray-600">' + (campaign.impressions?.toLocaleString() || '0') + '</span>' +
+                    '<p class="text-xs text-gray-400">impresiones</p>' +
+                  '</div>';
+                campaignsContainer.appendChild(campaignElement);
+              });
+            } else {
+              campaignsContainer.innerHTML = '<p class="text-gray-500 text-sm">No hay campañas activas</p>';
+            }
+            
+            // Mostrar información de cuenta
+            const accountInfoContainer = document.getElementById('google-ads-account-info');
+            accountInfoContainer.innerHTML = '';
+            
+            if (googleAdsData.account) {
+              const accountElement = document.createElement('div');
+              accountElement.className = 'space-y-2';
+              accountElement.innerHTML = 
+                '<div class="flex items-center justify-between p-2 bg-white rounded border">' +
+                  '<span class="text-sm text-gray-600">ID de Cliente:</span>' +
+                  '<span class="text-sm font-medium text-gray-800">' + (googleAdsData.account.customerId || 'N/A') + '</span>' +
+                '</div>' +
+                '<div class="flex items-center justify-between p-2 bg-white rounded border">' +
+                  '<span class="text-sm text-gray-600">Nombre:</span>' +
+                  '<span class="text-sm font-medium text-gray-800">' + (googleAdsData.account.descriptiveName || 'N/A') + '</span>' +
+                '</div>' +
+                '<div class="flex items-center justify-between p-2 bg-white rounded border">' +
+                  '<span class="text-sm text-gray-600">Zona Horaria:</span>' +
+                  '<span class="text-sm font-medium text-gray-800">' + (googleAdsData.account.timeZone || 'N/A') + '</span>' +
+                '</div>' +
+                '<div class="flex items-center justify-between p-2 bg-white rounded border">' +
+                  '<span class="text-sm text-gray-600">Moneda:</span>' +
+                  '<span class="text-sm font-medium text-gray-800">' + (googleAdsData.account.currencyCode || 'N/A') + '</span>' +
+                '</div>';
+              accountInfoContainer.appendChild(accountElement);
+            } else {
+              accountInfoContainer.innerHTML = '<p class="text-gray-500 text-sm">Información de cuenta no disponible</p>';
+            }
+            
+            // Mostrar contenido y ocultar loading
+            document.getElementById('google-ads-loading').classList.add('hidden');
+            document.getElementById('google-ads-content').classList.remove('hidden');
+            
+            console.log('✅ Datos Google Ads cargados correctamente');
+            
+          } catch (error) {
+            console.error('❌ Error cargando Google Ads:', error.message);
+            
+            // Mostrar error state
+            document.getElementById('google-ads-loading').classList.add('hidden');
+            document.getElementById('google-ads-content').classList.add('hidden');
+            document.getElementById('google-ads-error').classList.remove('hidden');
+            document.getElementById('google-ads-error-message').textContent = error.message;
+          }
+        }
+
         // Función para actualizar información de comparación
         function updateComparisonInfo(periodInfo) {
           const comparisonInfoDiv = document.getElementById('comparison-period-info');
@@ -3988,6 +4231,10 @@ const getHTML = () => {
           // Cargar datos de Google Analytics 4
           console.log('Cargando datos de Google Analytics 4...');
           await loadAnalytics();
+          
+          // Cargar datos de Google Ads
+          console.log('Cargando datos de Google Ads...');
+          await loadGoogleAds();
         });
         
         // === GESTIÓN DE USUARIOS ===
@@ -4640,6 +4887,113 @@ const server = http.createServer(async (req, res) => {
       });
       return;
       
+    } else if (pathname === '/api/google-ads') {
+      // API Google Ads (protegida)
+      authMiddleware(req, res, async () => {
+        try {
+          const dateRange = parseInt(query.days) || 30;
+          console.log(`🔍 Obteniendo datos Google Ads para ${dateRange} días...`);
+          
+          const googleAdsData = await getGoogleAdsInsights(dateRange);
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            data: googleAdsData,
+            message: `Datos Google Ads obtenidos para los últimos ${dateRange} días`
+          }));
+        } catch (error) {
+          console.error('❌ Error Google Ads API:', error.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message,
+            data: {
+              account: { error: 'Google Ads no disponible' },
+              campaigns: [],
+              metrics: { error: 'Google Ads no disponible' }
+            }
+          }));
+        }
+      });
+      return;
+      
+    } else if (pathname === '/api/google-ads-auth-url') {
+      // TEMPORAL: Generar URL de autorización para Google Ads OAuth
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      const { google } = require('googleapis');
+      
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_ADS_CLIENT_ID,
+        process.env.GOOGLE_ADS_CLIENT_SECRET,
+        'http://localhost:8080/oauth/callback'
+      );
+      
+      const scopes = [
+        'https://www.googleapis.com/auth/adwords'
+      ];
+      
+      const authUrl = oauth2Client.generateAuthUrl({
+        access_type: 'offline',
+        scope: scopes,
+        prompt: 'consent'
+      });
+      
+      res.end(JSON.stringify({
+        success: true,
+        auth_url: authUrl,
+        service: 'Google Ads API',
+        instructions: [
+          '1. Abre esta URL en tu navegador',
+          '2. Autoriza el acceso a Google Ads',
+          '3. Serás redirigido a localhost:8080 con el código en la URL',
+          '4. Copia el código del parámetro ?code= de la URL',
+          '5. Usa el endpoint /api/google-ads-exchange-token para obtener el refresh token'
+        ]
+      }));
+      return;
+      
+    } else if (pathname === '/api/google-ads-exchange-token' && req.method === 'POST') {
+      // TEMPORAL: Intercambiar código por refresh token de Google Ads
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      req.on('end', async () => {
+        try {
+          const { code } = JSON.parse(body);
+          const { google } = require('googleapis');
+          
+          const oauth2Client = new google.auth.OAuth2(
+            process.env.GOOGLE_ADS_CLIENT_ID,
+            process.env.GOOGLE_ADS_CLIENT_SECRET,
+            'http://localhost:8080/oauth/callback'
+          );
+          
+          const { tokens } = await oauth2Client.getToken(code);
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            service: 'Google Ads API',
+            tokens: tokens,
+            refresh_token: tokens.refresh_token,
+            instructions: [
+              'Actualiza tu archivo .env con:',
+              `GOOGLE_ADS_REFRESH_TOKEN=${tokens.refresh_token}`,
+              'Luego reinicia el servidor para aplicar cambios'
+            ]
+          }));
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message
+          }));
+        }
+      });
+      return;
+      
     } else if (pathname === '/api/chat' && req.method === 'POST') {
       // API Chat (protegida)
       let body = '';
@@ -4925,6 +5279,25 @@ const initializeServer = async () => {
     console.error('❌ GA4 Error stack:', error.stack);
   }
   
+  // Inicializar Google Ads
+  console.log('🔧 Inicializando Google Ads...');
+  let googleAdsClient = null;
+  let googleAdsConnected = false;
+  
+  try {
+    googleAdsClient = initializeGoogleAdsClient();
+    console.log('🔍 Google Ads Client Result:', googleAdsClient ? 'Inicializado' : 'NULL');
+    
+    if (googleAdsClient) {
+      googleAdsConnected = await testGoogleAdsConnection();
+    } else {
+      console.log('❌ Google Ads: Cliente retornó NULL - revisar credenciales');
+    }
+  } catch (error) {
+    console.error('❌ Error inicializando Google Ads:', error.message);
+    console.error('❌ Google Ads Error stack:', error.stack);
+  }
+  
   const PORT = process.env.PORT || 3001;
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Adaptoheal Analytics Dashboard iniciado en puerto ${PORT}`);
@@ -4934,6 +5307,7 @@ const initializeServer = async () => {
     console.log(`🛒 Conectado a WooCommerce: ${WOOCOMMERCE_URL}`);
     console.log(`🗄️ PostgreSQL: ${pgConnected ? '✅ Conectado' : '❌ Desconectado'}`);
     console.log(`📊 Google Analytics 4: ${ga4Connected ? '✅ Conectado' : '❌ Desconectado'}`);
+    console.log(`📢 Google Ads: ${googleAdsConnected ? '✅ Conectado' : '❌ Desconectado'}`);
     console.log(`📝 Máximo usuarios permitidos: ${process.env.MAX_USERS || 5}`);
   });
 };

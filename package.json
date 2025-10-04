@@ -19,6 +19,7 @@
     "@google-analytics/data": "^5.2.0",
     "bcryptjs": "^3.0.2",
     "dotenv": "^17.2.3",
+    "google-ads-api": "^21.0.1",
     "googleapis": "^161.0.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.16.3"
