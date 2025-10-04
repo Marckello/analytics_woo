@@ -516,6 +516,11 @@ const handleDashboard = async (query) => {
         startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
         periodLabel = 'Últimos 7 días';
         break;
+      case 'last-14-days':
+        endDate = new Date().toISOString();
+        startDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+        periodLabel = 'Últimos 14 días';
+        break;
       case 'this-month':
         const now = new Date();
         startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -1728,21 +1733,13 @@ const getHTML = () => {
                                 <select id="period-selector" onchange="changePeriod()" 
                                         class="bg-white text-gray-800 border border-gray-300 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-gray-50 transition-all shadow-lg w-full sm:w-auto">
                                 
-                                <!-- Períodos Rápidos -->
-                                <optgroup label="⚡ Períodos Rápidos" style="color: #1f2937; font-weight: bold;">
+                                <!-- Períodos Principales -->
+                                <optgroup label="📊 Períodos de Análisis" style="color: #1f2937; font-weight: bold;">
                                     <option value="today" style="color: #1f2937; background: white;">📅 Hoy</option>
                                     <option value="yesterday" style="color: #1f2937; background: white;">📅 Ayer</option>
-                                    <option value="last-7-days" style="color: #1f2937; background: white;">📊 Últimos 7 días</option>
+                                    <option value="last-7-days" selected style="color: #1f2937; background: white;">📊 Últimos 7 días</option>
+                                    <option value="last-14-days" style="color: #1f2937; background: white;">📈 Últimos 14 días</option>
                                     <option value="last-30-days" style="color: #1f2937; background: white;">📈 Últimos 30 días</option>
-                                </optgroup>
-                                
-                                <!-- Períodos Mensuales -->
-                                <optgroup label="📆 Períodos Mensuales" style="color: #1f2937; font-weight: bold;">
-                                    <option value="this-month" style="color: #1f2937; background: white;">📅 Este mes</option>
-                                    <option value="last-month" style="color: #1f2937; background: white;">📅 Mes anterior</option>
-                                    <option value="august-2025" style="color: #1f2937; background: white;">📊 Agosto 2025</option>
-                                    <option value="september-2025" selected style="color: #1f2937; background: white;">📊 Septiembre 2025</option>
-                                    <option value="october-2025" style="color: #1f2937; background: white;">📊 Octubre 2025</option>
                                 </optgroup>
                                 
                                 <!-- Rango Personalizado -->
@@ -2119,7 +2116,7 @@ const getHTML = () => {
                                         <div>
                                             <p class="text-xs font-medium text-gray-600">Impresiones</p>
                                             <p id="google-ads-impressions" class="text-xl font-bold text-gray-900">0</p>
-                                            <p class="text-xs text-gray-500">últimos 30 días</p>
+                                            <p id="google-ads-period-label" class="text-xs text-gray-500">período actual</p>
                                         </div>
                                     </div>
                                 </div>
@@ -2234,7 +2231,7 @@ const getHTML = () => {
                                         <div>
                                             <p class="text-xs font-medium text-gray-600">Usuarios Totales</p>
                                             <p id="ga4-total-users" class="text-xl font-bold text-gray-900">0</p>
-                                            <p class="text-xs text-gray-500">últimos 7 días</p>
+                                            <p id="ga4-period-label" class="text-xs text-gray-500">período actual</p>
                                         </div>
                                     </div>
                                 </div>
@@ -2759,7 +2756,7 @@ const getHTML = () => {
         <script>
         // Variables globales
         let dashboardData = null;
-        let activePeriod = 'september-2025';
+        let activePeriod = 'last-7-days';
         let comparisonEnabled = true; // Simplificado: solo on/off
         let customDateRange = null;
 
@@ -2775,6 +2772,54 @@ const getHTML = () => {
         // Función para formatear números grandes
         const formatNumber = (num) => {
           return new Intl.NumberFormat('es-MX').format(num);
+        };
+
+        // Función para convertir período a días para APIs (Google Ads/Analytics)
+        const getPeriodDays = (period, customDateRange = null) => {
+          if (customDateRange) {
+            const startDate = new Date(customDateRange.start);
+            const endDate = new Date(customDateRange.end);
+            const diffTime = Math.abs(endDate - startDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return Math.min(diffDays, 30); // Límite máximo 30 días para APIs
+          }
+          
+          switch(period) {
+            case 'today':
+              return 1;
+            case 'yesterday':
+              return 1;
+            case 'last-7-days':
+              return 7;
+            case 'last-14-days':
+              return 14;
+            case 'last-30-days':
+              return 30;
+            default:
+              return 7; // Por defecto 7 días
+          }
+        };
+
+        // Función para obtener etiqueta del período
+        const getPeriodLabel = (period, customDateRange = null) => {
+          if (customDateRange) {
+            return 'período personalizado';
+          }
+          
+          switch(period) {
+            case 'today':
+              return 'hoy';
+            case 'yesterday':
+              return 'ayer';
+            case 'last-7-days':
+              return 'últimos 7 días';
+            case 'last-14-days':
+              return 'últimos 14 días';
+            case 'last-30-days':
+              return 'últimos 30 días';
+            default:
+              return 'período actual';
+          }
         };
 
         // Función para manejar cambio de período
@@ -2835,6 +2880,9 @@ const getHTML = () => {
             case 'last-7-days':
               comparisonText = 'vs 7 días anteriores';
               break;
+            case 'last-14-days':
+              comparisonText = 'vs 14 días anteriores';
+              break;
             case 'last-30-days':
               comparisonText = 'vs 30 días anteriores';
               break;
@@ -2844,15 +2892,7 @@ const getHTML = () => {
             case 'last-month':
               comparisonText = 'vs 2 meses atrás';
               break;
-            case 'october-2025':
-              comparisonText = 'vs Septiembre 2025';
-              break;
-            case 'august-2025':
-              comparisonText = 'vs Julio 2025';
-              break;
-            case 'september-2025':
-              comparisonText = 'vs Agosto 2025';
-              break;
+
 
             case 'custom':
               comparisonText = 'vs Período anterior equivalente';
@@ -3064,6 +3104,13 @@ const getHTML = () => {
             
             // Habilitar chat después de cargar datos
             enableChat();
+            
+            // Recargar Google Analytics y Google Ads con nuevo período
+            console.log('Recargando Google Analytics con nuevo período...');
+            await loadAnalytics();
+            
+            console.log('Recargando Google Ads con nuevo período...');
+            await loadGoogleAds();
 
           } catch (error) {
             console.error('Error loading dashboard:', error);
@@ -3168,8 +3215,10 @@ const getHTML = () => {
             contentElement.classList.add('hidden');
             errorElement.classList.add('hidden');
             
-            // Hacer request a GA4 API (7 días por defecto)
-            const response = await axios.get('/api/analytics?days=7');
+            // Hacer request a GA4 API con período dinámico
+            const days = getPeriodDays(activePeriod, customDateRange);
+            console.log('📊 Google Analytics: Usando ' + days + ' días para período ' + activePeriod);
+            const response = await axios.get('/api/analytics?days=' + days);
             const result = response.data;
             
             if (!result.success) {
@@ -3178,6 +3227,10 @@ const getHTML = () => {
             
             const ga4Data = result.data;
             console.log('📊 Datos GA4 recibidos:', ga4Data);
+            
+            // Actualizar label de período
+            const periodLabel = getPeriodLabel(activePeriod, customDateRange);
+            document.getElementById('ga4-period-label').textContent = periodLabel;
             
             // Actualizar usuarios
             document.getElementById('ga4-total-users').textContent = ga4Data.users.totalUsers.toLocaleString();
@@ -3281,8 +3334,10 @@ const getHTML = () => {
             contentElement.classList.add('hidden');
             errorElement.classList.add('hidden');
             
-            // Hacer request a Google Ads API (30 días por defecto)
-            const response = await axios.get('/api/google-ads?days=30');
+            // Hacer request a Google Ads API con período dinámico
+            const days = getPeriodDays(activePeriod, customDateRange);
+            console.log('📊 Google Ads: Usando ' + days + ' días para período ' + activePeriod);
+            const response = await axios.get('/api/google-ads?days=' + days);
             const result = response.data;
             
             if (!result.success) {
@@ -3291,6 +3346,10 @@ const getHTML = () => {
             
             const googleAdsData = result.data;
             console.log('📊 Datos Google Ads recibidos:', googleAdsData);
+            
+            // Actualizar label de período
+            const periodLabel = getPeriodLabel(activePeriod, customDateRange);
+            document.getElementById('google-ads-period-label').textContent = periodLabel;
             
             // Actualizar métricas principales
             document.getElementById('google-ads-impressions').textContent = googleAdsData.metrics.impressions?.toLocaleString() || '0';
@@ -3612,24 +3671,17 @@ const getHTML = () => {
           
           // Mapear los valores del selector a labels amigables
           switch(selectedPeriod) {
-            case 'october-2025':
-              periodLabel = 'Octubre 2025';
+            case 'today':
+              periodLabel = 'Hoy';
               break;
-
-            case 'august-2025':
-              periodLabel = 'Agosto 2025';
-              break;
-            case 'september-2025':
-              periodLabel = 'Septiembre 2025';
-              break;
-            case 'previous-month':
-              periodLabel = 'Mes Anterior';
-              break;
-            case 'current-month':
-              periodLabel = 'Mes Actual';
+            case 'yesterday':
+              periodLabel = 'Ayer';
               break;
             case 'last-7-days':
               periodLabel = 'Últimos 7 días';
+              break;
+            case 'last-14-days':
+              periodLabel = 'Últimos 14 días';
               break;
             case 'last-30-days':
               periodLabel = 'Últimos 30 días';
