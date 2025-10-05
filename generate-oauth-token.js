@@ -20,7 +20,7 @@ async function generateRefreshToken() {
     return;
   }
 
-  console.log('🚀 Generando Refresh Token para Google Ads...');
+  console.log('🚀 Generando Refresh Token para Google Ads + Analytics...');
   
   // Crear OAuth2 client
   const oauth2Client = new OAuth2Client(
@@ -29,10 +29,13 @@ async function generateRefreshToken() {
     REDIRECT_URI
   );
 
-  // URL de autorización
+  // URL de autorización - INCLUYENDO AMBOS SERVICIOS
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
-    scope: ['https://www.googleapis.com/auth/adwords'],
+    scope: [
+      'https://www.googleapis.com/auth/adwords',           // Google Ads
+      'https://www.googleapis.com/auth/analytics.readonly' // Google Analytics (nuevo)
+    ],
     prompt: 'consent'
   });
 
@@ -55,8 +58,13 @@ async function generateRefreshToken() {
           console.log('✅ ¡Refresh Token generado exitosamente!');
           console.log('🔑 Refresh Token:', tokens.refresh_token);
           console.log('');
-          console.log('📝 Agrega esto a tu .env:');
+          console.log('📝 Agrega esto a tu .env (REEMPLAZA el token actual):');
           console.log(`GOOGLE_ADS_REFRESH_TOKEN=${tokens.refresh_token}`);
+          console.log(`GA4_REFRESH_TOKEN=${tokens.refresh_token}`);
+          console.log('');
+          console.log('🎯 Este token funcionará para AMBOS servicios:');
+          console.log('   ✅ Google Ads API');
+          console.log('   ✅ Google Analytics API');
           
           res.writeHead(200, { 'Content-Type': 'text/html' });
           res.end(`

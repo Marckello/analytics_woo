@@ -2,7 +2,7 @@
 const { BetaAnalyticsDataClient } = require('@google-analytics/data');
 
 // Configuración de GA4
-const GA4_PROPERTY_ID = process.env.GA4_PROPERTY_ID || '3231674558';
+const GA4_PROPERTY_ID = process.env.GA4_PROPERTY_ID || '302573443';
 const GA4_CLIENT_ID = process.env.GA4_CLIENT_ID;
 const GA4_CLIENT_SECRET = process.env.GA4_CLIENT_SECRET;
 const GA4_REFRESH_TOKEN = process.env.GA4_REFRESH_TOKEN;
