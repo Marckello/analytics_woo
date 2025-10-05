@@ -2492,7 +2492,7 @@ const getHTML = () => {
                             </div>
                             <div>
                                 <h3 class="text-xl font-bold text-gray-800">Contenido Orgánico</h3>
-                                <p class="text-sm text-gray-600">Facebook e Instagram - Seguidores, engagement y alcance</p>
+                                <p class="text-sm text-gray-600">Facebook e Instagram - Seguidores, interacciones y alcance</p>
                             </div>
                         </div>
                         <span class="text-xs font-medium text-purple-600 bg-purple-100 px-3 py-1 rounded-full">
@@ -2543,7 +2543,7 @@ const getHTML = () => {
                                             <i class="fas fa-heart text-white text-sm"></i>
                                         </div>
                                         <div>
-                                            <p class="text-xs font-medium text-gray-600">Engagement Total</p>
+                                            <p class="text-xs font-medium text-gray-600">Interacciones Total</p>
                                             <p id="organic-total-engagement" class="text-xl font-bold text-gray-900">0</p>
                                             <p id="organic-engagement-rate" class="text-xs text-gray-500">0% tasa</p>
                                         </div>
@@ -2623,7 +2623,7 @@ const getHTML = () => {
                             <div class="bg-gray-50 rounded-xl p-4">
                                 <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
                                     <i class="fas fa-fire text-orange-500 mr-2"></i>
-                                    Top 5 Posts por Engagement
+                                    Top 5 Posts por Interacciones
                                 </h4>
                                 <div id="organic-top-posts" class="space-y-3">
                                     <!-- Se llenará dinámicamente -->
