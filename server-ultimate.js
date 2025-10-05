@@ -1742,6 +1742,13 @@ const getHTML = () => {
                                     <option value="last-30-days" style="color: #1f2937; background: white;">📈 Últimos 30 días</option>
                                 </optgroup>
                                 
+                                <!-- Períodos Mensuales -->
+                                <optgroup label="📅 Períodos Mensuales" style="color: #1f2937; font-weight: bold;">
+                                    <option value="august-2025" style="color: #1f2937; background: white;">🌟 Agosto 2025</option>
+                                    <option value="september-2025" style="color: #1f2937; background: white;">🍂 Septiembre 2025</option>
+                                    <option value="october-2025" style="color: #1f2937; background: white;">🎃 Octubre 2025</option>
+                                </optgroup>
+                                
                                 <!-- Rango Personalizado -->
                                 <optgroup label="🔧 Personalizado" style="color: #1f2937; font-weight: bold;">
                                     <option value="custom" style="color: #1f2937; background: white;">📅 Seleccionar fechas...</option>
@@ -3685,6 +3692,15 @@ const getHTML = () => {
               break;
             case 'last-30-days':
               periodLabel = 'Últimos 30 días';
+              break;
+            case 'august-2025':
+              periodLabel = 'Agosto 2025';
+              break;
+            case 'september-2025':
+              periodLabel = 'Septiembre 2025';
+              break;
+            case 'october-2025':
+              periodLabel = 'Octubre 2025';
               break;
             case 'custom':
               if (customDateRange) {
