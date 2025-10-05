@@ -49,6 +49,17 @@ const {
   testGoogleAdsConnection
 } = require('./google-ads-official.js');
 
+// Importar módulo de Meta Ads
+const {
+  initializeMetaAdsClient,
+  getAdAccountInfo,
+  getCampaigns: getMetaCampaigns,
+  getAdInsights,
+  getCampaignInsights,
+  getMetaAdsInsights,
+  testMetaConnection
+} = require('./meta-ads.js');
+
 // Configuración - usando las mismas variables de entorno
 const WOOCOMMERCE_URL = process.env.WOOCOMMERCE_URL || 'https://adaptohealmx.com';
 const WOOCOMMERCE_CONSUMER_KEY = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
@@ -2315,6 +2326,150 @@ const getHTML = () => {
                     </div>
                 </div>
 
+                <!-- NUEVA SECCIÓN: Meta Ads (Facebook/Instagram) -->
+                <div class="glass-effect rounded-xl p-8 card-hover">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600">
+                                <i class="fab fa-facebook text-xl text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">Meta Ads</h3>
+                                <p class="text-sm text-gray-600">Campañas de Facebook e Instagram</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-medium text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
+                            <i class="fab fa-meta mr-1"></i>META
+                        </span>
+                    </div>
+                    
+                    <div id="meta-ads-section">
+                        <!-- Loading state -->
+                        <div id="meta-ads-loading" class="text-center py-8">
+                            <i class="fas fa-spinner fa-spin text-2xl text-gray-400 mb-3"></i>
+                            <p class="text-sm text-gray-500">Cargando datos de Meta Ads...</p>
+                        </div>
+                        
+                        <!-- Meta Ads content -->
+                        <div id="meta-ads-content" class="hidden">
+                            <!-- Métricas principales -->
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                                <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-blue-500 rounded-lg">
+                                            <i class="fas fa-dollar-sign text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Gasto Total</p>
+                                            <p id="meta-total-spend" class="text-xl font-bold text-gray-900">$0</p>
+                                            <p id="meta-spend-period" class="text-xs text-gray-500">período actual</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-green-500 rounded-lg">
+                                            <i class="fas fa-eye text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Impresiones</p>
+                                            <p id="meta-total-impressions" class="text-xl font-bold text-gray-900">0</p>
+                                            <p id="meta-impressions-period" class="text-xs text-gray-500">período actual</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-4 border border-yellow-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-yellow-500 rounded-lg">
+                                            <i class="fas fa-mouse-pointer text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Clicks</p>
+                                            <p id="meta-total-clicks" class="text-xl font-bold text-gray-900">0</p>
+                                            <p id="meta-clicks-period" class="text-xs text-gray-500">período actual</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-purple-500 rounded-lg">
+                                            <i class="fas fa-bullseye text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Conversiones</p>
+                                            <p id="meta-total-conversions" class="text-xl font-bold text-gray-900">0</p>
+                                            <p id="meta-conversions-period" class="text-xs text-gray-500">período actual</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Métricas de rendimiento -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <div class="bg-gray-50 rounded-xl p-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fas fa-percentage text-blue-500 mr-2"></i>
+                                        CTR (Click-Through Rate)
+                                    </h4>
+                                    <p id="meta-ctr" class="text-2xl font-bold text-blue-600">0%</p>
+                                    <p class="text-xs text-gray-500 mt-1">Tasa de clics</p>
+                                </div>
+                                
+                                <div class="bg-gray-50 rounded-xl p-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fas fa-money-bill-wave text-green-500 mr-2"></i>
+                                        CPM (Costo por mil impresiones)
+                                    </h4>
+                                    <p id="meta-cpm" class="text-2xl font-bold text-green-600">$0</p>
+                                    <p class="text-xs text-gray-500 mt-1">Costo por 1,000 impresiones</p>
+                                </div>
+                                
+                                <div class="bg-gray-50 rounded-xl p-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fas fa-hand-pointer text-orange-500 mr-2"></i>
+                                        CPC (Costo por click)
+                                    </h4>
+                                    <p id="meta-cpc" class="text-2xl font-bold text-orange-600">$0</p>
+                                    <p class="text-xs text-gray-500 mt-1">Costo promedio por click</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Campañas activas y información de cuenta -->
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div class="bg-gray-50 rounded-xl p-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fas fa-bullhorn text-purple-500 mr-2"></i>
+                                        Campañas Activas
+                                    </h4>
+                                    <div id="meta-campaigns-list" class="space-y-3">
+                                        <!-- Se llenará dinámicamente -->
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gray-50 rounded-xl p-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                                        Información de Cuenta
+                                    </h4>
+                                    <div id="meta-account-info" class="space-y-2">
+                                        <!-- Se llenará dinámicamente -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Error state -->
+                        <div id="meta-ads-error" class="hidden text-center py-8">
+                            <i class="fas fa-exclamation-triangle text-3xl text-yellow-400 mb-3"></i>
+                            <p class="text-sm text-gray-500">Error cargando datos de Meta Ads</p>
+                            <p id="meta-ads-error-message" class="text-xs text-gray-400 mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- NUEVA SECCIÓN: Cupones de Descuento -->
                 <div class="glass-effect rounded-xl p-8 card-hover">
                     <div class="flex items-center justify-between mb-6">
@@ -3118,6 +3273,9 @@ const getHTML = () => {
             
             console.log('Recargando Google Ads con nuevo período...');
             await loadGoogleAds();
+            
+            console.log('Recargando Meta Ads con nuevo período...');
+            await loadMetaAds();
 
           } catch (error) {
             console.error('Error loading dashboard:', error);
@@ -3442,6 +3600,130 @@ const getHTML = () => {
             document.getElementById('google-ads-content').classList.add('hidden');
             document.getElementById('google-ads-error').classList.remove('hidden');
             document.getElementById('google-ads-error-message').textContent = error.message;
+          }
+        }
+
+        // Función para cargar datos de Meta Ads
+        async function loadMetaAds() {
+          try {
+            console.log('🔍 Cargando datos de Meta Ads...');
+            
+            // Verificar que los elementos existan
+            const loadingElement = document.getElementById('meta-ads-loading');
+            const contentElement = document.getElementById('meta-ads-content');
+            const errorElement = document.getElementById('meta-ads-error');
+            
+            if (!loadingElement || !contentElement || !errorElement) {
+              console.error('❌ Elementos Meta Ads no encontrados en el DOM');
+              return;
+            }
+            
+            // Mostrar loading state
+            loadingElement.classList.remove('hidden');
+            contentElement.classList.add('hidden');
+            errorElement.classList.add('hidden');
+            
+            // Hacer request a Meta Ads API con período dinámico
+            const days = getPeriodDays(activePeriod, customDateRange);
+            console.log('📊 Meta Ads: Usando ' + days + ' días para período ' + activePeriod);
+            const response = await axios.get('/api/meta-ads?days=' + days);
+            const result = response.data;
+            
+            if (!result.success) {
+              throw new Error(result.error || 'Error cargando datos Meta Ads');
+            }
+            
+            const metaAdsData = result.data;
+            console.log('📊 Datos Meta Ads recibidos:', metaAdsData);
+            
+            // Actualizar label de período
+            const periodLabel = getPeriodLabel(activePeriod, customDateRange);
+            document.getElementById('meta-spend-period').textContent = periodLabel;
+            document.getElementById('meta-impressions-period').textContent = periodLabel;
+            document.getElementById('meta-clicks-period').textContent = periodLabel;
+            document.getElementById('meta-conversions-period').textContent = periodLabel;
+            
+            // Actualizar métricas principales
+            document.getElementById('meta-total-spend').textContent = formatCurrency(metaAdsData.insights.totalSpend || 0);
+            document.getElementById('meta-total-impressions').textContent = (metaAdsData.insights.totalImpressions || 0).toLocaleString();
+            document.getElementById('meta-total-clicks').textContent = (metaAdsData.insights.totalClicks || 0).toLocaleString();
+            document.getElementById('meta-total-conversions').textContent = (metaAdsData.insights.conversions || 0).toLocaleString();
+            
+            // Actualizar métricas de rendimiento
+            document.getElementById('meta-ctr').textContent = (metaAdsData.insights.ctr || 0).toFixed(2) + '%';
+            document.getElementById('meta-cpm').textContent = formatCurrency(metaAdsData.insights.cpm || 0);
+            document.getElementById('meta-cpc').textContent = formatCurrency(metaAdsData.insights.cpc || 0);
+            
+            // Mostrar campañas activas
+            const campaignsContainer = document.getElementById('meta-campaigns-list');
+            campaignsContainer.innerHTML = '';
+            
+            if (metaAdsData.campaigns && metaAdsData.campaigns.length > 0) {
+              metaAdsData.campaigns.slice(0, 5).forEach((campaign, index) => {
+                const campaignElement = document.createElement('div');
+                campaignElement.className = 'flex items-center justify-between p-2 bg-white rounded border';
+                campaignElement.innerHTML = 
+                  '<div class="flex items-center space-x-2">' +
+                    '<span class="w-6 h-6 bg-blue-100 text-blue-600 text-xs font-bold rounded-full flex items-center justify-center">' + (index + 1) + '</span>' +
+                    '<div>' +
+                      '<p class="text-sm font-medium text-gray-800 truncate" style="max-width: 200px;" title="' + (campaign.name || 'N/A') + '">' + (campaign.name || 'N/A') + '</p>' +
+                      '<p class="text-xs text-gray-500">Estado: ' + (campaign.status || 'N/A') + '</p>' +
+                      '<p class="text-xs text-gray-500">Objetivo: ' + (campaign.objective || 'N/A') + '</p>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="text-right">' +
+                    '<span class="text-sm font-semibold text-gray-600">' + formatCurrency(campaign.dailyBudget || 0) + '</span>' +
+                    '<p class="text-xs text-gray-400">presupuesto diario</p>' +
+                  '</div>';
+                campaignsContainer.appendChild(campaignElement);
+              });
+            } else {
+              campaignsContainer.innerHTML = '<p class="text-gray-500 text-sm">No hay campañas activas</p>';
+            }
+            
+            // Mostrar información de cuenta
+            const accountInfoContainer = document.getElementById('meta-account-info');
+            accountInfoContainer.innerHTML = '';
+            
+            if (metaAdsData.account && !metaAdsData.account.error) {
+              const accountElement = document.createElement('div');
+              accountElement.className = 'space-y-2';
+              accountElement.innerHTML = 
+                '<div class="flex items-center justify-between p-2 bg-white rounded border">' +
+                  '<span class="text-sm text-gray-600">ID de Cuenta:</span>' +
+                  '<span class="text-sm font-medium text-gray-800">' + (metaAdsData.account.id || 'N/A') + '</span>' +
+                '</div>' +
+                '<div class="flex items-center justify-between p-2 bg-white rounded border">' +
+                  '<span class="text-sm text-gray-600">Nombre:</span>' +
+                  '<span class="text-sm font-medium text-gray-800">' + (metaAdsData.account.name || 'N/A') + '</span>' +
+                '</div>' +
+                '<div class="flex items-center justify-between p-2 bg-white rounded border">' +
+                  '<span class="text-sm text-gray-600">Moneda:</span>' +
+                  '<span class="text-sm font-medium text-gray-800">' + (metaAdsData.account.currency || 'N/A') + '</span>' +
+                '</div>' +
+                '<div class="flex items-center justify-between p-2 bg-white rounded border">' +
+                  '<span class="text-sm text-gray-600">Zona Horaria:</span>' +
+                  '<span class="text-sm font-medium text-gray-800">' + (metaAdsData.account.timezone || 'N/A') + '</span>' +
+                '</div>';
+              accountInfoContainer.appendChild(accountElement);
+            } else {
+              accountInfoContainer.innerHTML = '<p class="text-gray-500 text-sm">Información de cuenta no disponible</p>';
+            }
+            
+            // Mostrar contenido y ocultar loading
+            loadingElement.classList.add('hidden');
+            contentElement.classList.remove('hidden');
+            
+            console.log('✅ Datos Meta Ads cargados correctamente');
+            
+          } catch (error) {
+            console.error('❌ Error cargando Meta Ads:', error.message);
+            
+            // Mostrar error state
+            document.getElementById('meta-ads-loading').classList.add('hidden');
+            document.getElementById('meta-ads-content').classList.add('hidden');
+            document.getElementById('meta-ads-error').classList.remove('hidden');
+            document.getElementById('meta-ads-error-message').textContent = error.message;
           }
         }
 
@@ -4303,6 +4585,10 @@ const getHTML = () => {
           // Cargar datos de Google Ads
           console.log('Cargando datos de Google Ads...');
           await loadGoogleAds();
+          
+          // Cargar datos de Meta Ads
+          console.log('Cargando datos de Meta Ads...');
+          await loadMetaAds();
         });
         
         // === GESTIÓN DE USUARIOS ===
@@ -4986,6 +5272,57 @@ const server = http.createServer(async (req, res) => {
       });
       return;
       
+    } else if (pathname === '/api/meta-ads') {
+      // API Meta Ads (protegida)
+      authMiddleware(req, res, async () => {
+        try {
+          const dateRange = parseInt(query.days) || 30;
+          console.log(`🔍 Obteniendo datos Meta Ads para ${dateRange} días...`);
+          
+          const metaAdsData = await getMetaAdsInsights(dateRange);
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            data: metaAdsData,
+            message: `Datos Meta Ads obtenidos para los últimos ${dateRange} días`
+          }));
+        } catch (error) {
+          console.error('❌ Error Meta Ads API:', error.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message,
+            data: {
+              account: { error: 'Meta Ads no disponible' },
+              campaigns: [],
+              insights: {
+                totalSpend: 0,
+                totalImpressions: 0,
+                totalClicks: 0,
+                ctr: 0,
+                cpm: 0,
+                cpc: 0,
+                conversions: 0
+              },
+              campaignInsights: [],
+              summary: {
+                totalSpend: 0,
+                totalImpressions: 0,
+                totalClicks: 0,
+                avgCTR: 0,
+                avgCPM: 0,
+                avgCPC: 0,
+                totalConversions: 0,
+                activeCampaigns: 0,
+                totalCampaigns: 0
+              }
+            }
+          }));
+        }
+      });
+      return;
+      
     } else if (pathname === '/api/google-ads-auth-url') {
       // TEMPORAL: Generar URL de autorización para Google Ads OAuth
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -5366,6 +5703,27 @@ const initializeServer = async () => {
     console.error('❌ Google Ads Error stack:', error.stack);
   }
   
+  // Inicializar Meta Ads
+  console.log('🔧 Inicializando Meta Ads...');
+  let metaAdsClient = null;
+  let metaAdsConnected = false;
+  
+  try {
+    metaAdsClient = initializeMetaAdsClient();
+    console.log('🔍 Meta Ads Client Result:', metaAdsClient ? 'Inicializado' : 'NULL');
+    
+    if (metaAdsClient) {
+      const metaTest = await testMetaConnection();
+      metaAdsConnected = metaTest.success;
+      console.log('🔍 Meta Ads Test Result:', metaTest);
+    } else {
+      console.log('❌ Meta Ads: Cliente retornó NULL - revisar credenciales');
+    }
+  } catch (error) {
+    console.error('❌ Error inicializando Meta Ads:', error.message);
+    console.error('❌ Meta Ads Error stack:', error.stack);
+  }
+  
   const PORT = process.env.PORT || 3001;
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Adaptoheal Analytics Dashboard iniciado en puerto ${PORT}`);
@@ -5376,6 +5734,7 @@ const initializeServer = async () => {
     console.log(`🗄️ PostgreSQL: ${pgConnected ? '✅ Conectado' : '❌ Desconectado'}`);
     console.log(`📊 Google Analytics 4: ${ga4Connected ? '✅ Conectado' : '❌ Desconectado'}`);
     console.log(`📢 Google Ads: ${googleAdsConnected ? '✅ Conectado' : '❌ Desconectado'}`);
+    console.log(`📱 Meta Ads: ${metaAdsConnected ? '✅ Conectado' : '❌ Desconectado'}`);
     console.log(`📝 Máximo usuarios permitidos: ${process.env.MAX_USERS || 5}`);
   });
 };
