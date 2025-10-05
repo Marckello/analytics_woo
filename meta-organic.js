@@ -188,7 +188,7 @@ const getFacebookRecentPosts = async (limit = 10) => {
   
   try {
     const data = await makeFacebookPageRequest(`/${FACEBOOK_PAGE_ID}/posts`, {
-      fields: 'id,message,created_time,type,status_type,permalink_url,shares,reactions.summary(true),comments.summary(true)',
+      fields: 'id,message,created_time,type,permalink_url,reactions.summary(true),comments.summary(true)',
       limit: limit
     });
 
@@ -202,15 +202,13 @@ const getFacebookRecentPosts = async (limit = 10) => {
       type: post.type,
       statusType: post.status_type,
       permalinkUrl: post.permalink_url,
-      shares: post.shares?.count || 0,
+      shares: 0, // Shares deprecated in v3.3+
       reactions: post.reactions?.summary?.total_count || 0,
       comments: post.comments?.summary?.total_count || 0,
       totalInteractions: (post.reactions?.summary?.total_count || 0) + 
-                        (post.comments?.summary?.total_count || 0) + 
-                        (post.shares?.count || 0),
+                        (post.comments?.summary?.total_count || 0),
       totalEngagement: (post.reactions?.summary?.total_count || 0) + 
-                      (post.comments?.summary?.total_count || 0) + 
-                      (post.shares?.count || 0)
+                      (post.comments?.summary?.total_count || 0)
     }));
   } catch (error) {
     console.error('❌ Error obteniendo posts de Facebook:', error.message);
@@ -343,70 +341,40 @@ const getInstagramRecentPosts = async (limit = 12) => {
   try {
     // Primero obtener la lista de media
     const mediaData = await makeMetaAPIRequest(`/${INSTAGRAM_ACCOUNT_ID}/media`, {
-      fields: 'id,caption,media_type,media_url,permalink,timestamp,thumbnail_url,children{media_url,media_type}',
+      fields: 'id,caption,media_type,media_url,permalink,timestamp,thumbnail_url,like_count,comments_count,children{media_url,media_type}',
       limit: limit
     });
 
     const mediaList = mediaData.data || [];
     console.log(`📸 Instagram: ${mediaList.length} posts obtenidos`);
     
-    // Para cada post, obtener sus insights
-    const postsWithInsights = await Promise.all(
-      mediaList.map(async (post) => {
-        try {
-          // Obtener insights del post
-          const insightsData = await makeMetaAPIRequest(`/${post.id}/insights`, {
-            metric: 'impressions,reach,likes,comments,shares,saves'
-          });
-
-          const insights = insightsData.data || [];
-          const processedInsights = {
-            impressions: 0,
-            reach: 0,
-            likes: 0,
-            comments: 0,
-            shares: 0,
-            saves: 0
-          };
-
-          insights.forEach(metric => {
-            const value = metric.values?.[0]?.value || 0;
-            processedInsights[metric.name] = value;
-          });
-
-          return {
-            id: post.id,
-            caption: post.caption || '',
-            mediaType: post.media_type,
-            mediaUrl: post.media_url,
-            thumbnailUrl: post.thumbnail_url,
-            permalink: post.permalink,
-            timestamp: post.timestamp,
-            children: post.children?.data || [],
-            insights: processedInsights,
-            totalInteractions: processedInsights.likes + processedInsights.comments + 
-                              processedInsights.shares + processedInsights.saves,
-            totalEngagement: processedInsights.likes + processedInsights.comments + 
-                            processedInsights.shares + processedInsights.saves
-          };
-        } catch (insightError) {
-          console.log(`⚠️ No se pudieron obtener insights para post ${post.id}`);
-          return {
-            id: post.id,
-            caption: post.caption || '',
-            mediaType: post.media_type,
-            mediaUrl: post.media_url,
-            thumbnailUrl: post.thumbnail_url,
-            permalink: post.permalink,
-            timestamp: post.timestamp,
-            children: post.children?.data || [],
-            insights: { impressions: 0, reach: 0, likes: 0, comments: 0, shares: 0, saves: 0 },
-            totalInteractions: 0,
-            totalEngagement: 0
-          };
-        }
-      })
-    );
+    // Procesar posts con datos directos (más confiable que insights)
+    const postsWithInsights = mediaList.map((post) => {
+      const likes = post.like_count || 0;
+      const comments = post.comments_count || 0;
+      const totalInteractions = likes + comments;
+      
+      return {
+        id: post.id,
+        caption: post.caption || '',
+        mediaType: post.media_type,
+        mediaUrl: post.media_url,
+        thumbnailUrl: post.thumbnail_url,
+        permalink: post.permalink,
+        timestamp: post.timestamp,
+        children: post.children?.data || [],
+        insights: {
+          impressions: 0, // No disponible en basic fields
+          reach: 0,       // No disponible en basic fields  
+          likes: likes,
+          comments: comments,
+          shares: 0,      // No disponible en basic fields
+          saved: 0        // No disponible en basic fields
+        },
+        totalInteractions: totalInteractions,
+        totalEngagement: totalInteractions
+      };
+    });
 
     return postsWithInsights;
   } catch (error) {
