@@ -98,11 +98,10 @@ const getFacebookPageInsights = async (dateRange = 30) => {
     const formattedStartDate = startDate.toISOString().split('T')[0];
     const formattedEndDate = endDate.toISOString().split('T')[0];
 
-    // Métricas de página que queremos obtener
+    // Métricas de página que queremos obtener (métricas válidas)
     const metrics = [
       'page_impressions',
       'page_impressions_unique',
-      'page_engaged_users',
       'page_post_engagements',
       'page_posts_impressions',
       'page_fans',
@@ -143,9 +142,7 @@ const getFacebookPageInsights = async (dateRange = 30) => {
         case 'page_impressions_unique':
           processedInsights.uniqueImpressions = totalValue;
           break;
-        case 'page_engaged_users':
-          processedInsights.engagedUsers = totalValue;
-          break;
+        // page_engaged_users no es una métrica válida - removida
         case 'page_post_engagements':
           processedInsights.postEngagements = totalValue;
           break;
