@@ -205,6 +205,9 @@ const getFacebookRecentPosts = async (limit = 10) => {
       shares: post.shares?.count || 0,
       reactions: post.reactions?.summary?.total_count || 0,
       comments: post.comments?.summary?.total_count || 0,
+      totalInteractions: (post.reactions?.summary?.total_count || 0) + 
+                        (post.comments?.summary?.total_count || 0) + 
+                        (post.shares?.count || 0),
       totalEngagement: (post.reactions?.summary?.total_count || 0) + 
                       (post.comments?.summary?.total_count || 0) + 
                       (post.shares?.count || 0)
@@ -381,6 +384,8 @@ const getInstagramRecentPosts = async (limit = 12) => {
             timestamp: post.timestamp,
             children: post.children?.data || [],
             insights: processedInsights,
+            totalInteractions: processedInsights.likes + processedInsights.comments + 
+                              processedInsights.shares + processedInsights.saves,
             totalEngagement: processedInsights.likes + processedInsights.comments + 
                             processedInsights.shares + processedInsights.saves
           };
@@ -396,6 +401,7 @@ const getInstagramRecentPosts = async (limit = 12) => {
             timestamp: post.timestamp,
             children: post.children?.data || [],
             insights: { impressions: 0, reach: 0, likes: 0, comments: 0, shares: 0, saves: 0 },
+            totalInteractions: 0,
             totalEngagement: 0
           };
         }

@@ -4007,8 +4007,8 @@ const getHTML = () => {
                     '</div>' +
                   '</div>' +
                   '<div class="text-right">' +
-                    '<span class="text-lg font-bold text-purple-600">' + (post.totalEngagement || post.engagementRate || 0) + '</span>' +
-                    '<p class="text-xs text-gray-400">engagement</p>' +
+                    '<span class="text-lg font-bold text-purple-600">' + (post.totalInteractions || post.totalEngagement || 0) + '</span>' +
+                    '<p class="text-xs text-gray-400">interacciones</p>' +
                   '</div>';
                 
                 topPostsContainer.appendChild(postElement);
