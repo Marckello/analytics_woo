@@ -37,7 +37,7 @@ const {
   getTrafficSources,
   getGA4Insights,
   testGA4Connection
-} = require('./google-analytics.js');
+} = require('./google-analytics-oauth.js');
 
 // Importar módulo de Google Ads (Official Client)
 const {
