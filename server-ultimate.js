@@ -60,6 +60,19 @@ const {
   testMetaConnection
 } = require('./meta-ads.js');
 
+// Importar módulo de Meta Organic (Facebook Pages + Instagram Business)
+const {
+  getFacebookPageInfo,
+  getFacebookPageInsights,
+  getFacebookRecentPosts,
+  getInstagramAccountInfo,
+  getInstagramInsights,
+  getInstagramRecentPosts,
+  getInstagramStories,
+  getMetaOrganicInsights,
+  testMetaOrganicConnection
+} = require('./meta-organic.js');
+
 // Configuración - usando las mismas variables de entorno
 const WOOCOMMERCE_URL = process.env.WOOCOMMERCE_URL || 'https://adaptohealmx.com';
 const WOOCOMMERCE_CONSUMER_KEY = process.env.WOOCOMMERCE_CONSUMER_KEY || '';
@@ -2470,6 +2483,176 @@ const getHTML = () => {
                     </div>
                 </div>
 
+                <!-- NUEVA SECCIÓN: Meta Organic (Facebook Pages + Instagram Business) -->
+                <div class="glass-effect rounded-xl p-8 card-hover">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600">
+                                <i class="fas fa-heart text-xl text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">Contenido Orgánico</h3>
+                                <p class="text-sm text-gray-600">Facebook e Instagram - Seguidores, engagement y alcance</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-medium text-purple-600 bg-purple-100 px-3 py-1 rounded-full">
+                            <i class="fas fa-users mr-1"></i>ORGÁNICO
+                        </span>
+                    </div>
+                    
+                    <div id="meta-organic-section">
+                        <!-- Loading state -->
+                        <div id="meta-organic-loading" class="text-center py-8">
+                            <i class="fas fa-spinner fa-spin text-2xl text-gray-400 mb-3"></i>
+                            <p class="text-sm text-gray-500">Cargando contenido orgánico...</p>
+                        </div>
+                        
+                        <!-- Meta Organic content -->
+                        <div id="meta-organic-content" class="hidden">
+                            <!-- Métricas principales combinadas -->
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                                <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-purple-500 rounded-lg">
+                                            <i class="fas fa-users text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Total Seguidores</p>
+                                            <p id="organic-total-followers" class="text-xl font-bold text-gray-900">0</p>
+                                            <p id="organic-followers-breakdown" class="text-xs text-gray-500">FB + IG</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-blue-500 rounded-lg">
+                                            <i class="fas fa-eye text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Alcance Total</p>
+                                            <p id="organic-total-reach" class="text-xl font-bold text-gray-900">0</p>
+                                            <p id="organic-reach-period" class="text-xs text-gray-500">período actual</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-green-500 rounded-lg">
+                                            <i class="fas fa-heart text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Engagement Total</p>
+                                            <p id="organic-total-engagement" class="text-xl font-bold text-gray-900">0</p>
+                                            <p id="organic-engagement-rate" class="text-xs text-gray-500">0% tasa</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-100">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="p-2 bg-orange-500 rounded-lg">
+                                            <i class="fas fa-image text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-600">Contenido</p>
+                                            <p id="organic-total-posts" class="text-xl font-bold text-gray-900">0</p>
+                                            <p id="organic-content-breakdown" class="text-xs text-gray-500">posts + stories</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Desglose por plataforma -->
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                                <!-- Facebook Page -->
+                                <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fab fa-facebook text-blue-600 mr-2"></i>
+                                        Facebook Page
+                                    </h4>
+                                    <div class="space-y-3">
+                                        <div class="flex items-center justify-between p-2 bg-white rounded border">
+                                            <span class="text-sm text-gray-600">Seguidores:</span>
+                                            <span id="fb-followers" class="text-sm font-medium text-gray-800">0</span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 bg-white rounded border">
+                                            <span class="text-sm text-gray-600">Alcance único:</span>
+                                            <span id="fb-unique-reach" class="text-sm font-medium text-gray-800">0</span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 bg-white rounded border">
+                                            <span class="text-sm text-gray-600">Usuarios comprometidos:</span>
+                                            <span id="fb-engaged-users" class="text-sm font-medium text-gray-800">0</span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 bg-white rounded border">
+                                            <span class="text-sm text-gray-600">Posts publicados:</span>
+                                            <span id="fb-posts-count" class="text-sm font-medium text-gray-800">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Instagram Business -->
+                                <div class="bg-pink-50 rounded-xl p-4 border border-pink-100">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fab fa-instagram text-pink-600 mr-2"></i>
+                                        Instagram Business
+                                    </h4>
+                                    <div class="space-y-3">
+                                        <div class="flex items-center justify-between p-2 bg-white rounded border">
+                                            <span class="text-sm text-gray-600">Seguidores:</span>
+                                            <span id="ig-followers" class="text-sm font-medium text-gray-800">0</span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 bg-white rounded border">
+                                            <span class="text-sm text-gray-600">Alcance:</span>
+                                            <span id="ig-reach" class="text-sm font-medium text-gray-800">0</span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 bg-white rounded border">
+                                            <span class="text-sm text-gray-600">Visitas al perfil:</span>
+                                            <span id="ig-profile-views" class="text-sm font-medium text-gray-800">0</span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 bg-white rounded border">
+                                            <span class="text-sm text-gray-600">Posts + Stories:</span>
+                                            <span id="ig-content-count" class="text-sm font-medium text-gray-800">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Top Posts -->
+                            <div class="bg-gray-50 rounded-xl p-4">
+                                <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                    <i class="fas fa-fire text-orange-500 mr-2"></i>
+                                    Top 5 Posts por Engagement
+                                </h4>
+                                <div id="organic-top-posts" class="space-y-3">
+                                    <!-- Se llenará dinámicamente -->
+                                </div>
+                            </div>
+                            
+                            <!-- Instagram Stories (si hay) -->
+                            <div id="ig-stories-container" class="hidden mt-6">
+                                <div class="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-4 border border-pink-100">
+                                    <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                        <i class="fas fa-play-circle text-pink-500 mr-2"></i>
+                                        Instagram Stories Recientes
+                                    </h4>
+                                    <div id="ig-stories-list" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        <!-- Se llenará dinámicamente -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Error state -->
+                        <div id="meta-organic-error" class="hidden text-center py-8">
+                            <i class="fas fa-exclamation-triangle text-3xl text-yellow-400 mb-3"></i>
+                            <p class="text-sm text-gray-500">Error cargando contenido orgánico</p>
+                            <p id="meta-organic-error-message" class="text-xs text-gray-400 mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- NUEVA SECCIÓN: Cupones de Descuento -->
                 <div class="glass-effect rounded-xl p-8 card-hover">
                     <div class="flex items-center justify-between mb-6">
@@ -3276,6 +3459,9 @@ const getHTML = () => {
             
             console.log('Recargando Meta Ads con nuevo período...');
             await loadMetaAds();
+            
+            console.log('Recargando Meta Organic con nuevo período...');
+            await loadMetaOrganic();
 
           } catch (error) {
             console.error('Error loading dashboard:', error);
@@ -3724,6 +3910,158 @@ const getHTML = () => {
             document.getElementById('meta-ads-content').classList.add('hidden');
             document.getElementById('meta-ads-error').classList.remove('hidden');
             document.getElementById('meta-ads-error-message').textContent = error.message;
+          }
+        }
+
+        // Función para cargar contenido orgánico de Meta (Facebook + Instagram)
+        async function loadMetaOrganic() {
+          try {
+            console.log('🔍 Cargando contenido orgánico de Meta...');
+            
+            // Verificar que los elementos existan
+            const loadingElement = document.getElementById('meta-organic-loading');
+            const contentElement = document.getElementById('meta-organic-content');
+            const errorElement = document.getElementById('meta-organic-error');
+            
+            if (!loadingElement || !contentElement || !errorElement) {
+              console.error('❌ Elementos Meta Organic no encontrados en el DOM');
+              return;
+            }
+            
+            // Mostrar loading state
+            loadingElement.classList.remove('hidden');
+            contentElement.classList.add('hidden');
+            errorElement.classList.add('hidden');
+            
+            // Hacer request a Meta Organic API con período dinámico
+            const days = getPeriodDays(activePeriod, customDateRange);
+            console.log('📊 Meta Organic: Usando ' + days + ' días para período ' + activePeriod);
+            const response = await axios.get('/api/meta-organic?days=' + days);
+            const result = response.data;
+            
+            if (!result.success) {
+              throw new Error(result.error || 'Error cargando contenido orgánico');
+            }
+            
+            const organicData = result.data;
+            console.log('📊 Datos Meta Organic recibidos:', organicData);
+            
+            // Actualizar métricas principales combinadas
+            const summary = organicData.summary || {};
+            document.getElementById('organic-total-followers').textContent = (summary.totalFollowers || 0).toLocaleString();
+            document.getElementById('organic-total-reach').textContent = (summary.totalReach || 0).toLocaleString();
+            document.getElementById('organic-total-engagement').textContent = (summary.totalEngagement || 0).toLocaleString();
+            document.getElementById('organic-total-posts').textContent = (summary.facebookPosts + summary.instagramPosts + summary.instagramStories || 0).toLocaleString();
+            
+            // Desglose de seguidores
+            const fbFollowers = organicData.facebook?.pageInfo?.followersCount || 0;
+            const igFollowers = organicData.instagram?.accountInfo?.followersCount || 0;
+            document.getElementById('organic-followers-breakdown').textContent = 'FB: ' + fbFollowers.toLocaleString() + ' | IG: ' + igFollowers.toLocaleString();
+            
+            // Engagement rate
+            document.getElementById('organic-engagement-rate').textContent = (summary.engagementRate || 0) + '% tasa';
+            
+            // Content breakdown
+            document.getElementById('organic-content-breakdown').textContent = 
+              (summary.facebookPosts || 0) + ' FB | ' + (summary.instagramPosts || 0) + ' IG | ' + (summary.instagramStories || 0) + ' Stories';
+            
+            // Actualizar período
+            const periodLabel = getPeriodLabel(activePeriod, customDateRange);
+            document.getElementById('organic-reach-period').textContent = periodLabel;
+            
+            // Facebook metrics
+            document.getElementById('fb-followers').textContent = fbFollowers.toLocaleString();
+            document.getElementById('fb-unique-reach').textContent = (organicData.facebook?.insights?.uniqueImpressions || 0).toLocaleString();
+            document.getElementById('fb-engaged-users').textContent = (organicData.facebook?.insights?.engagedUsers || 0).toLocaleString();
+            document.getElementById('fb-posts-count').textContent = (summary.facebookPosts || 0).toLocaleString();
+            
+            // Instagram metrics
+            document.getElementById('ig-followers').textContent = igFollowers.toLocaleString();
+            document.getElementById('ig-reach').textContent = (organicData.instagram?.insights?.reach || 0).toLocaleString();
+            document.getElementById('ig-profile-views').textContent = (organicData.instagram?.insights?.profileViews || 0).toLocaleString();
+            document.getElementById('ig-content-count').textContent = (summary.instagramPosts || 0) + ' + ' + (summary.instagramStories || 0);
+            
+            // Top Posts
+            const topPostsContainer = document.getElementById('organic-top-posts');
+            topPostsContainer.innerHTML = '';
+            
+            if (organicData.topPosts && organicData.topPosts.length > 0) {
+              organicData.topPosts.forEach((post, index) => {
+                const postElement = document.createElement('div');
+                postElement.className = 'flex items-center justify-between p-3 bg-white rounded border hover:shadow-sm transition-shadow';
+                
+                const platform = post.platform === 'facebook' ? 'Facebook' : 'Instagram';
+                const platformIcon = post.platform === 'facebook' ? 'fab fa-facebook text-blue-600' : 'fab fa-instagram text-pink-600';
+                const postText = post.message || post.caption || 'Sin texto';
+                const truncatedText = postText.length > 80 ? postText.substring(0, 80) + '...' : postText;
+                
+                postElement.innerHTML = 
+                  '<div class="flex items-center space-x-3 flex-1">' +
+                    '<span class="w-8 h-8 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-600 text-sm font-bold rounded-full flex items-center justify-center">' + (index + 1) + '</span>' +
+                    '<div class="flex-1">' +
+                      '<div class="flex items-center space-x-2 mb-1">' +
+                        '<i class="' + platformIcon + ' text-sm"></i>' +
+                        '<span class="text-xs font-medium text-gray-500">' + platform + '</span>' +
+                      '</div>' +
+                      '<p class="text-sm text-gray-800 leading-tight">' + truncatedText + '</p>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="text-right">' +
+                    '<span class="text-lg font-bold text-purple-600">' + (post.totalEngagement || post.engagementRate || 0) + '</span>' +
+                    '<p class="text-xs text-gray-400">engagement</p>' +
+                  '</div>';
+                
+                topPostsContainer.appendChild(postElement);
+              });
+            } else {
+              topPostsContainer.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No hay posts disponibles para este período</p>';
+            }
+            
+            // Instagram Stories
+            const storiesContainer = document.getElementById('ig-stories-container');
+            const storiesList = document.getElementById('ig-stories-list');
+            
+            if (organicData.instagram?.stories && organicData.instagram.stories.length > 0) {
+              storiesContainer.classList.remove('hidden');
+              storiesList.innerHTML = '';
+              
+              organicData.instagram.stories.slice(0, 8).forEach((story, index) => {
+                const storyElement = document.createElement('div');
+                storyElement.className = 'bg-white rounded-lg p-3 border border-pink-200 hover:shadow-sm transition-shadow';
+                
+                const impressions = story.insights?.impressions || 0;
+                const reach = story.insights?.reach || 0;
+                
+                storyElement.innerHTML = 
+                  '<div class="text-center">' +
+                    '<div class="w-12 h-12 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full mx-auto mb-2 flex items-center justify-center">' +
+                      '<i class="fas fa-play text-white text-lg"></i>' +
+                    '</div>' +
+                    '<p class="text-xs font-medium text-gray-800 mb-1">Story ' + (index + 1) + '</p>' +
+                    '<p class="text-xs text-gray-500">' + impressions.toLocaleString() + ' views</p>' +
+                    '<p class="text-xs text-gray-400">' + reach.toLocaleString() + ' reach</p>' +
+                  '</div>';
+                
+                storiesList.appendChild(storyElement);
+              });
+            } else {
+              storiesContainer.classList.add('hidden');
+            }
+            
+            // Mostrar contenido y ocultar loading
+            loadingElement.classList.add('hidden');
+            contentElement.classList.remove('hidden');
+            
+            console.log('✅ Contenido orgánico Meta cargado correctamente');
+            
+          } catch (error) {
+            console.error('❌ Error cargando contenido orgánico Meta:', error.message);
+            
+            // Mostrar error state
+            document.getElementById('meta-organic-loading').classList.add('hidden');
+            document.getElementById('meta-organic-content').classList.add('hidden');
+            document.getElementById('meta-organic-error').classList.remove('hidden');
+            document.getElementById('meta-organic-error-message').textContent = error.message;
           }
         }
 
@@ -4589,6 +4927,10 @@ const getHTML = () => {
           // Cargar datos de Meta Ads
           console.log('Cargando datos de Meta Ads...');
           await loadMetaAds();
+          
+          // Cargar contenido orgánico de Meta
+          console.log('Cargando contenido orgánico de Meta...');
+          await loadMetaOrganic();
         });
         
         // === GESTIÓN DE USUARIOS ===
@@ -5323,6 +5665,48 @@ const server = http.createServer(async (req, res) => {
       });
       return;
       
+    } else if (pathname === '/api/meta-organic') {
+      // API Meta Organic - Facebook Pages + Instagram Business (protegida)
+      authMiddleware(req, res, async () => {
+        try {
+          const dateRange = parseInt(query.days) || 30;
+          console.log(`🔍 Obteniendo datos Meta Organic para ${dateRange} días...`);
+          
+          const metaOrganicData = await getMetaOrganicInsights(dateRange);
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            data: metaOrganicData,
+            message: `Datos Meta Organic obtenidos para los últimos ${dateRange} días`
+          }));
+        } catch (error) {
+          console.error('❌ Error Meta Organic API:', error.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message,
+            data: {
+              facebook: { pageInfo: { error: 'Facebook no disponible' }, insights: {}, posts: [] },
+              instagram: { accountInfo: { error: 'Instagram no disponible' }, insights: {}, posts: [], stories: [] },
+              combined: { totalFollowers: 0, totalImpressions: 0, totalReach: 0, totalEngagement: 0 },
+              topPosts: [],
+              summary: {
+                totalFollowers: 0,
+                totalImpressions: 0,
+                totalReach: 0,
+                totalEngagement: 0,
+                engagementRate: 0,
+                facebookPosts: 0,
+                instagramPosts: 0,
+                instagramStories: 0
+              }
+            }
+          }));
+        }
+      });
+      return;
+      
     } else if (pathname === '/api/google-ads-auth-url') {
       // TEMPORAL: Generar URL de autorización para Google Ads OAuth
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -5724,6 +6108,24 @@ const initializeServer = async () => {
     console.error('❌ Meta Ads Error stack:', error.stack);
   }
   
+  // Inicializar Meta Organic (Facebook Pages + Instagram Business)
+  console.log('🔧 Inicializando Meta Organic (Facebook Pages + Instagram Business)...');
+  let metaOrganicConnected = false;
+  
+  try {
+    const metaOrganicTest = await testMetaOrganicConnection();
+    metaOrganicConnected = metaOrganicTest.success;
+    console.log('🔍 Meta Organic Test Result:', metaOrganicTest);
+    
+    if (metaOrganicTest.success && metaOrganicTest.data) {
+      console.log('📘 Facebook Page:', metaOrganicTest.data.facebook.name || 'N/A');
+      console.log('📸 Instagram Account:', metaOrganicTest.data.instagram.username || 'N/A');
+    }
+  } catch (error) {
+    console.error('❌ Error inicializando Meta Organic:', error.message);
+    console.error('❌ Meta Organic Error stack:', error.stack);
+  }
+  
   const PORT = process.env.PORT || 3001;
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Adaptoheal Analytics Dashboard iniciado en puerto ${PORT}`);
@@ -5735,6 +6137,7 @@ const initializeServer = async () => {
     console.log(`📊 Google Analytics 4: ${ga4Connected ? '✅ Conectado' : '❌ Desconectado'}`);
     console.log(`📢 Google Ads: ${googleAdsConnected ? '✅ Conectado' : '❌ Desconectado'}`);
     console.log(`📱 Meta Ads: ${metaAdsConnected ? '✅ Conectado' : '❌ Desconectado'}`);
+    console.log(`📘 Meta Organic: ${metaOrganicConnected ? '✅ Conectado' : '❌ Desconectado'}`);
     console.log(`📝 Máximo usuarios permitidos: ${process.env.MAX_USERS || 5}`);
   });
 };
