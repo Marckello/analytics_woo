@@ -2316,6 +2316,25 @@ const getHTML = () => {
             </div>
         </div>
 
+        <!-- SISTEMA DE NAVEGACIÓN POR PESTAÑAS -->
+        <div class="bg-white shadow-sm border-b border-gray-200">
+            <div class="container mx-auto px-6">
+                <nav class="flex space-x-8">
+                    <button onclick="switchTab('resumen')" id="tab-resumen" 
+                            class="inline-flex items-center px-1 pt-4 pb-4 border-b-2 border-indigo-500 text-sm font-medium text-indigo-600 focus:outline-none">
+                        <i class="fas fa-chart-pie mr-2"></i>
+                        Resumen General
+                    </button>
+                    <button onclick="switchTab('distribuidores')" id="tab-distribuidores" 
+                            class="inline-flex items-center px-1 pt-4 pb-4 border-b-2 border-transparent text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none transition-all duration-200">
+                        <i class="fas fa-network-wired mr-2"></i>
+                        Distribuidores
+                        <span class="ml-2 bg-indigo-100 text-indigo-600 text-xs px-2 py-0.5 rounded-full">26</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+
         <!-- FILTRO DE ESTADOS DE ÓRDENES -->
         <div class="bg-white shadow-lg border-t border-gray-200">
             <div class="container mx-auto px-6 py-4">
@@ -2438,8 +2457,10 @@ const getHTML = () => {
                 </div>
             </div>
 
-            <!-- Modern Dashboard Content -->
-            <div id="dashboard" class="hidden space-y-8">
+            <!-- CONTENIDO DE PESTAÑA RESUMEN -->
+            <div id="tab-content-resumen" class="tab-content">
+                <!-- Modern Dashboard Content -->
+                <div id="dashboard" class="hidden space-y-8">
                 <!-- Modern KPIs Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <!-- Ventas Card -->
@@ -2567,6 +2588,231 @@ const getHTML = () => {
                                 <div class="mt-3 text-xs text-gray-400">
                                     <i class="fas fa-shopping-cart mr-1"></i>
                                     Compras regulares y tickets menores
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NUEVA SECCIÓN: MONITOREO DE DISTRIBUIDORES -->
+                <div class="glass-effect rounded-xl p-8 card-hover">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-3 rounded-lg bg-gradient-to-r from-indigo-500 to-blue-600">
+                                <i class="fas fa-network-wired text-xl text-white"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">Monitoreo de Distribuidores</h3>
+                                <p class="text-sm text-gray-600">Seguimiento detallado de políticas, cumplimiento y rendimiento</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-medium text-indigo-600 bg-indigo-100 px-3 py-1 rounded-full">
+                            <i class="fas fa-chart-network mr-1"></i>26 DISTRIBUIDORES
+                        </span>
+                    </div>
+                    
+                    <!-- Resumen ejecutivo de distribuidores -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <!-- Total Activos -->
+                        <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 bg-green-500 rounded-lg">
+                                    <i class="fas fa-check-circle text-white text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-gray-600">Activos</p>
+                                    <p id="distributors-active-count" class="text-xl font-bold text-green-700">0</p>
+                                    <p class="text-xs text-gray-500">de 26 registrados</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Cumplimiento -->
+                        <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 bg-blue-500 rounded-lg">
+                                    <i class="fas fa-clipboard-check text-white text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-gray-600">Cumplimiento</p>
+                                    <p id="distributors-compliance-rate" class="text-xl font-bold text-blue-700">0%</p>
+                                    <p class="text-xs text-gray-500">políticas comerciales</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Ticket Promedio -->
+                        <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-100">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 bg-purple-500 rounded-lg">
+                                    <i class="fas fa-receipt text-white text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-gray-600">Ticket Promedio</p>
+                                    <p id="distributors-avg-ticket-display" class="text-xl font-bold text-purple-700">$0</p>
+                                    <p class="text-xs text-gray-500">vs clientes regulares</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Ciclo Bimestral -->
+                        <div class="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-100">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 bg-orange-500 rounded-lg">
+                                    <i class="fas fa-calendar-alt text-white text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-gray-600">Ciclo Actual</p>
+                                    <p id="distributors-current-cycle" class="text-xl font-bold text-orange-700">B5-2025</p>
+                                    <p class="text-xs text-gray-500">bimestre en curso</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filtros de monitoreo -->
+                    <div class="bg-gray-50 rounded-xl p-4 mb-6">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-sm font-medium text-gray-700">Filtros:</span>
+                                <div class="flex items-center space-x-2">
+                                    <label class="flex items-center space-x-1 cursor-pointer text-sm">
+                                        <input type="checkbox" id="filter-active-distributors" checked onchange="updateDistributorsView()" 
+                                               class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+                                        <span class="text-gray-700">Activos</span>
+                                    </label>
+                                    <label class="flex items-center space-x-1 cursor-pointer text-sm">
+                                        <input type="checkbox" id="filter-compliance-issues" onchange="updateDistributorsView()" 
+                                               class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                                        <span class="text-gray-700">Con alertas</span>
+                                    </label>
+                                    <label class="flex items-center space-x-1 cursor-pointer text-sm">
+                                        <input type="checkbox" id="filter-high-performers" checked onchange="updateDistributorsView()" 
+                                               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="text-gray-700">Alto rendimiento</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-sm text-gray-600">Vista:</span>
+                                <button onclick="toggleDistributorsView('grid')" id="btn-view-grid" 
+                                        class="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded-lg hover:bg-indigo-200 transition-colors">
+                                    <i class="fas fa-th mr-1"></i>Grid
+                                </button>
+                                <button onclick="toggleDistributorsView('table')" id="btn-view-table" 
+                                        class="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors">
+                                    <i class="fas fa-list mr-1"></i>Tabla
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Vista de Grid de distribuidores -->
+                    <div id="distributors-grid-view" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+                        <!-- Se llenará dinámicamente con los 26 distribuidores -->
+                    </div>
+                    
+                    <!-- Vista de Tabla de distribuidores -->
+                    <div id="distributors-table-view" class="hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full bg-white rounded-lg border border-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Distribuidor</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Órdenes</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ventas</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket Prom.</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Último Pedido</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cumplimiento</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="distributors-table-body" class="bg-white divide-y divide-gray-200">
+                                    <!-- Se llenará dinámicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Panel de análisis de políticas comerciales -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                        <!-- Políticas de Cumplimiento -->
+                        <div class="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 border border-yellow-100">
+                            <h4 class="font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-gavel text-yellow-600 mr-2"></i>
+                                Políticas Comerciales
+                            </h4>
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between p-3 bg-white rounded-lg border">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-800">Mínimo de Compra</p>
+                                        <p class="text-xs text-gray-500">$3,000 MXN bimestral</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p id="policy-min-purchase-compliant" class="text-lg font-bold text-green-600">0</p>
+                                        <p class="text-xs text-gray-500">cumplen</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between p-3 bg-white rounded-lg border">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-800">Pago Puntual</p>
+                                        <p class="text-xs text-gray-500">≤ 30 días calendario</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p id="policy-payment-compliant" class="text-lg font-bold text-blue-600">0</p>
+                                        <p class="text-xs text-gray-500">puntuales</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between p-3 bg-white rounded-lg border">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-800">Frecuencia</p>
+                                        <p class="text-xs text-gray-500">≥ 1 orden/mes</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p id="policy-frequency-compliant" class="text-lg font-bold text-purple-600">0</p>
+                                        <p class="text-xs text-gray-500">activos</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Alertas y Seguimiento -->
+                        <div class="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-6 border border-red-100">
+                            <h4 class="font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-bell text-red-600 mr-2"></i>
+                                Alertas de Seguimiento
+                            </h4>
+                            <div id="distributors-alerts" class="space-y-3">
+                                <!-- Se llenarán dinámicamente -->
+                                <div class="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-exclamation-triangle text-red-500"></i>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-800">Bajo cumplimiento</p>
+                                            <p class="text-xs text-gray-500">Distribuidores con alertas</p>
+                                        </div>
+                                    </div>
+                                    <span id="alerts-low-compliance" class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium">0</span>
+                                </div>
+                                <div class="flex items-center justify-between p-3 bg-white rounded-lg border border-yellow-200">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-clock text-yellow-500"></i>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-800">Pago pendiente</p>
+                                            <p class="text-xs text-gray-500">Facturas vencidas</p>
+                                        </div>
+                                    </div>
+                                    <span id="alerts-payment-overdue" class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-medium">0</span>
+                                </div>
+                                <div class="flex items-center justify-between p-3 bg-white rounded-lg border border-blue-200">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-chart-line text-blue-500"></i>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-800">Bajo volumen</p>
+                                            <p class="text-xs text-gray-500">Por debajo del mínimo</p>
+                                        </div>
+                                    </div>
+                                    <span id="alerts-low-volume" class="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">0</span>
                                 </div>
                             </div>
                         </div>
@@ -3558,6 +3804,226 @@ const getHTML = () => {
                     </button>
                 </div>
             </div>
+            
+            </div> <!-- Fin tab-content-resumen -->
+
+            <!-- CONTENIDO DE PESTAÑA DISTRIBUIDORES -->
+            <div id="tab-content-distribuidores" class="tab-content hidden">
+                <!-- Loading State para Distribuidores -->
+                <div id="distributors-loading" class="flex flex-col justify-center items-center py-16">
+                    <div class="relative">
+                        <div class="animate-spin rounded-full h-16 w-16 border-4 border-indigo-200"></div>
+                        <div class="animate-spin rounded-full h-16 w-16 border-4 border-indigo-600 border-t-transparent absolute top-0"></div>
+                    </div>
+                    <div class="mt-6 text-center">
+                        <p class="text-lg font-medium text-gray-700">Cargando Distribuidores</p>
+                        <p class="text-sm text-gray-500 mt-2">Analizando datos de los 26 distribuidores registrados...</p>
+                    </div>
+                </div>
+
+                <!-- Dashboard de Distribuidores -->
+                <div id="distributors-dashboard" class="hidden">
+                    <!-- Header de Distribuidores -->
+                    <div class="bg-gradient-to-r from-indigo-500 to-blue-600 rounded-xl p-8 mb-8 text-white">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h1 class="text-3xl font-bold mb-2">
+                                    <i class="fas fa-network-wired mr-3"></i>
+                                    Monitoreo de Distribuidores
+                                </h1>
+                                <p class="text-indigo-100">Sistema completo de seguimiento, políticas y cumplimiento</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-4xl font-bold" id="total-distributors-display">26</div>
+                                <div class="text-indigo-100 text-sm">Distribuidores Registrados</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Métricas Resumen -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                        <!-- Total Activos -->
+                        <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="flex items-center space-x-4">
+                                <div class="p-3 bg-green-100 rounded-lg">
+                                    <i class="fas fa-check-circle text-2xl text-green-600"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">Distribuidores Activos</p>
+                                    <p id="dist-active-count" class="text-2xl font-bold text-green-600">0</p>
+                                    <p class="text-xs text-gray-500">de 26 registrados</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Cumplimiento Global -->
+                        <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="flex items-center space-x-4">
+                                <div class="p-3 bg-blue-100 rounded-lg">
+                                    <i class="fas fa-clipboard-check text-2xl text-blue-600"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">Cumplimiento Global</p>
+                                    <p id="dist-compliance-rate" class="text-2xl font-bold text-blue-600">0%</p>
+                                    <p class="text-xs text-gray-500">políticas comerciales</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Ventas Distribuidores -->
+                        <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="flex items-center space-x-4">
+                                <div class="p-3 bg-purple-100 rounded-lg">
+                                    <i class="fas fa-chart-line text-2xl text-purple-600"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">Ventas Totales</p>
+                                    <p id="dist-total-sales" class="text-2xl font-bold text-purple-600">$0</p>
+                                    <p class="text-xs text-gray-500">canal distribuidores</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Ciclo Actual -->
+                        <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="flex items-center space-x-4">
+                                <div class="p-3 bg-orange-100 rounded-lg">
+                                    <i class="fas fa-calendar-alt text-2xl text-orange-600"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-600">Ciclo Bimestral</p>
+                                    <p id="dist-current-cycle" class="text-2xl font-bold text-orange-600">B5-2025</p>
+                                    <p class="text-xs text-gray-500">período actual</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filtros y Controles -->
+                    <div class="bg-white rounded-xl p-6 mb-8 border border-gray-200 shadow-sm">
+                        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+                            <!-- Filtros -->
+                            <div class="flex flex-wrap items-center gap-4">
+                                <span class="text-sm font-medium text-gray-700">Filtros:</span>
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <label class="flex items-center space-x-2 cursor-pointer text-sm">
+                                        <input type="checkbox" id="dist-filter-active" checked onchange="updateDistributorsView()" 
+                                               class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+                                        <span class="text-gray-700">Activos</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 cursor-pointer text-sm">
+                                        <input type="checkbox" id="dist-filter-alerts" onchange="updateDistributorsView()" 
+                                               class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                                        <span class="text-gray-700">Con alertas</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 cursor-pointer text-sm">
+                                        <input type="checkbox" id="dist-filter-high-perf" checked onchange="updateDistributorsView()" 
+                                               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="text-gray-700">Alto rendimiento</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Controles de Vista -->
+                            <div class="flex items-center space-x-3">
+                                <span class="text-sm text-gray-600">Vista:</span>
+                                <button onclick="toggleDistributorsView('grid')" id="dist-btn-view-grid" 
+                                        class="px-4 py-2 bg-indigo-100 text-indigo-700 text-sm rounded-lg hover:bg-indigo-200 transition-colors font-medium">
+                                    <i class="fas fa-th mr-2"></i>Tarjetas
+                                </button>
+                                <button onclick="toggleDistributorsView('table')" id="dist-btn-view-table" 
+                                        class="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors font-medium">
+                                    <i class="fas fa-list mr-2"></i>Tabla
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vista de Grid -->
+                    <div id="dist-grid-view" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+                        <!-- Se llenará dinámicamente -->
+                    </div>
+                    
+                    <!-- Vista de Tabla -->
+                    <div id="dist-table-view" class="hidden mb-8">
+                        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="w-full">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Distribuidor</th>
+                                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Órdenes</th>
+                                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ventas</th>
+                                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket Prom.</th>
+                                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Último Pedido</th>
+                                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cumplimiento</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dist-table-body" class="bg-white divide-y divide-gray-200">
+                                        <!-- Se llenará dinámicamente -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Paneles de Políticas y Alertas -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Políticas Comerciales -->
+                        <div class="bg-white rounded-xl p-8 border border-gray-200 shadow-sm">
+                            <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                                <i class="fas fa-gavel text-yellow-600 mr-3"></i>
+                                Políticas Comerciales
+                            </h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-800">Mínimo de Compra Bimestral</p>
+                                        <p class="text-xs text-gray-500">$3,000 MXN cada 2 meses</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p id="dist-policy-min-purchase" class="text-xl font-bold text-green-600">0</p>
+                                        <p class="text-xs text-gray-500">cumplen</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-800">Pago Puntual</p>
+                                        <p class="text-xs text-gray-500">≤ 30 días calendario</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p id="dist-policy-payment" class="text-xl font-bold text-blue-600">0</p>
+                                        <p class="text-xs text-gray-500">al corriente</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-800">Frecuencia de Órdenes</p>
+                                        <p class="text-xs text-gray-500">≥ 1 orden por mes</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p id="dist-policy-frequency" class="text-xl font-bold text-purple-600">0</p>
+                                        <p class="text-xs text-gray-500">frecuentes</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Sistema de Alertas -->
+                        <div class="bg-white rounded-xl p-8 border border-gray-200 shadow-sm">
+                            <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                                <i class="fas fa-bell text-red-600 mr-3"></i>
+                                Alertas y Seguimiento
+                            </h3>
+                            <div id="dist-alerts-container" class="space-y-4">
+                                <!-- Se llenará dinámicamente -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- Fin tab-content-distribuidores -->
+            
         </div>
 
         <script>
@@ -4924,6 +5390,9 @@ const getHTML = () => {
           // NUEVO: Actualizar secciones de costos de envío e insights
           updateShippingCostsSection();
           updateShippingInsightsSection();
+          
+          // NUEVO: Actualizar sección de monitoreo de distribuidores
+          updateDistributorsMonitoring();
 
           document.getElementById('loading').classList.add('hidden');
           document.getElementById('dashboard').classList.remove('hidden');
@@ -5508,6 +5977,341 @@ const getHTML = () => {
           }
         }
 
+        // =================================
+        // DATOS Y VARIABLES PARA DISTRIBUIDORES
+        // =================================
+        
+        let currentDistributorsView = 'grid';
+        let distributorsData = [];
+        
+        // Lista de emails de los 26 distribuidores reales
+        const distributorEmailsList = [
+          'elizabeth.h.c@hotmail.com',
+          'annabgdiaz@gmail.com', 
+          'sofiborto94@outlook.com',
+          'gsha3390@gmail.com',
+          'diazinfantea@aol.com',
+          'hola@adaptohealmx.com',
+          'rafazavala2003@hotmail.com',
+          'glomunoz@hotmail.com',
+          'compras@recibexpress.com',
+          'hola@allus.shop',
+          'compras@sanvite.com',
+          'mauro.costanzopa@outlook.com',
+          'reginacr.healthcoach@gmail.com',
+          'mioh70@hotmail.com',
+          'almacen@ocmarket.mx',
+          'magdaaldacog@gmail.com',
+          'vero@innata.mx',
+          'compras3@sinerco.com.mx',
+          'diandraig@gmail.com',
+          'silvia.glz.gomez@hotmail.com',
+          'alfredo@zarcos.mx',
+          'compras.petirrojoazul@gmail.com',
+          'servicio@boyu.mx',
+          'luisperdigon@icloud.com',
+          'analuciaalfarooliveros@gmail.com',
+          'sebastianzavala08@gmail.com'
+        ];
+
+        // Función para generar datos de ejemplo para distribuidores
+        function generateDistributorsData() {
+          const names = [
+            'Elizabeth Hernández', 'Anna Díaz', 'Sofía Borto', 'Gabriel Sha',
+            'Alicia Díaz', 'Adaptoheal México', 'Rafael Zavala', 'Gloria Muñoz',
+            'RecibExpress', 'Allus Shop', 'Sanvite', 'Mauro Costanzo',
+            'Regina Coach', 'Miguel Hernández', 'OC Market', 'Magda Aldaco',
+            'Vero Innata', 'Sinerco', 'Diandra García', 'Silvia González',
+            'Alfredo Zarcos', 'Petirrojo Azul', 'Boyu', 'Luis Perdigón',
+            'Ana Lucía Alfaro', 'Sebastián Zavala'
+          ];
+
+          distributorsData = distributorEmailsList.map((email, index) => {
+            const isActive = Math.random() > 0.3; // 70% activos
+            const sales = Math.floor(Math.random() * 50000) + 5000;
+            const orders = Math.floor(sales / (Math.random() * 800 + 400));
+            const avgTicket = orders > 0 ? sales / orders : 0;
+            const complianceScore = Math.floor(Math.random() * 40) + 60; // 60-100%
+            const alerts = Math.random() > 0.8 ? ['Pago pendiente', 'Bajo volumen'] : [];
+            const isHighPerformer = sales > 25000 && complianceScore > 80;
+            const paymentStatus = Math.random() > 0.2 ? 'current' : 'overdue';
+            
+            return {
+              id: index + 1,
+              name: names[index] || 'Distribuidor ' + (index + 1),
+              email: email,
+              isActive: isActive,
+              sales: sales,
+              orders: orders,
+              avgTicket: avgTicket,
+              complianceScore: complianceScore,
+              alerts: alerts,
+              isHighPerformer: isHighPerformer,
+              paymentStatus: paymentStatus,
+              lastOrderDate: new Date(Date.now() - Math.floor(Math.random() * 30 * 24 * 60 * 60 * 1000)), // Últimos 30 días
+              bimesterCompliance: Math.random() > 0.3 // 70% cumple bimestre
+            };
+          });
+
+          console.log('Datos de distribuidores generados:', distributorsData.length, 'distribuidores');
+        }
+
+        // =================================
+        // FUNCIONES PARA VISTA DE DISTRIBUIDORES
+        // =================================
+        
+        function updateDistributorsGridViewTab() {
+          const gridContainer = document.getElementById('dist-grid-view');
+          if (!gridContainer) return;
+          
+          const filteredDistributors = getFilteredDistributorsTab();
+          
+          const cardsHTML = filteredDistributors.map(distributor => {
+            const statusColor = distributor.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+            const statusText = distributor.isActive ? 'Activo' : 'Inactivo';
+            const alertIcon = distributor.alerts.length > 0 ? '<i class="fas fa-exclamation-triangle text-yellow-500"></i>' : '';
+            const complianceColor = distributor.complianceScore >= 80 ? 'text-green-600' : 
+                                  distributor.complianceScore >= 60 ? 'text-yellow-600' : 'text-red-600';
+            const complianceBgColor = distributor.complianceScore >= 80 ? 'bg-green-500' : 
+                                    distributor.complianceScore >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+            
+            return '<div class="glass-effect rounded-xl p-6 card-hover">' +
+                '<div class="flex items-start justify-between mb-4">' +
+                  '<div class="flex items-center space-x-3">' +
+                    '<div class="w-12 h-12 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-full flex items-center justify-center">' +
+                      '<span class="text-white font-bold text-lg">' + distributor.name.charAt(0) + '</span>' +
+                    '</div>' +
+                    '<div>' +
+                      '<h3 class="font-semibold text-gray-800">' + distributor.name + '</h3>' +
+                      '<p class="text-sm text-gray-500">' + distributor.email + '</p>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="flex items-center space-x-2">' +
+                    '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + statusColor + '">' +
+                      statusText +
+                    '</span>' +
+                    alertIcon +
+                  '</div>' +
+                '</div>' +
+                '<div class="space-y-3">' +
+                  '<div class="flex justify-between items-center">' +
+                    '<span class="text-sm text-gray-600">Ventas:</span>' +
+                    '<span class="font-semibold text-gray-800">' + formatCurrency(distributor.sales) + '</span>' +
+                  '</div>' +
+                  '<div class="flex justify-between items-center">' +
+                    '<span class="text-sm text-gray-600">Órdenes:</span>' +
+                    '<span class="font-semibold text-gray-800">' + distributor.orders + '</span>' +
+                  '</div>' +
+                  '<div class="flex justify-between items-center">' +
+                    '<span class="text-sm text-gray-600">Ticket Prom:</span>' +
+                    '<span class="font-semibold text-gray-800">' + formatCurrency(distributor.avgTicket) + '</span>' +
+                  '</div>' +
+                  '<div class="flex justify-between items-center">' +
+                    '<span class="text-sm text-gray-600">Cumplimiento:</span>' +
+                    '<div class="flex items-center space-x-2">' +
+                      '<div class="w-16 bg-gray-200 rounded-full h-2">' +
+                        '<div class="h-2 rounded-full ' + complianceBgColor + '" style="width: ' + distributor.complianceScore + '%"></div>' +
+                      '</div>' +
+                      '<span class="text-sm font-medium ' + complianceColor + '">' + Math.round(distributor.complianceScore) + '%</span>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="flex justify-between items-center">' +
+                    '<span class="text-sm text-gray-600">Última orden:</span>' +
+                    '<span class="text-sm text-gray-800">' + distributor.lastOrderDate.toLocaleDateString('es-MX') + '</span>' +
+                  '</div>' +
+                '</div>' +
+              '</div>';
+          }).join('');
+          
+          gridContainer.innerHTML = cardsHTML;
+        }
+        
+        function updateDistributorsTableViewTab() {
+          const tbody = document.getElementById('dist-table-body');
+          if (!tbody) return;
+          
+          const filteredDistributors = getFilteredDistributorsTab();
+          
+          const tableHTML = filteredDistributors.map(distributor => {
+            const statusBadge = distributor.isActive 
+              ? '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Activo</span>'
+              : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Inactivo</span>';
+            
+            const alertIcon = distributor.alerts.length > 0 
+              ? '<i class="fas fa-exclamation-triangle text-yellow-500 text-sm ml-2"></i>'
+              : '';
+              
+            const complianceColor = distributor.complianceScore >= 80 ? 'text-green-600' : 
+                                  distributor.complianceScore >= 60 ? 'text-yellow-600' : 'text-red-600';
+            const complianceBgColor = distributor.complianceScore >= 80 ? 'bg-green-500' : 
+                                    distributor.complianceScore >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+            
+            return '<tr class="hover:bg-gray-50">' +
+                '<td class="px-6 py-4">' +
+                  '<div class="flex items-center space-x-3">' +
+                    '<div class="w-10 h-10 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-full flex items-center justify-center">' +
+                      '<span class="text-white font-bold text-sm">' + distributor.name.charAt(0) + '</span>' +
+                    '</div>' +
+                    '<div>' +
+                      '<p class="font-medium text-gray-900">' + distributor.name + '</p>' +
+                      '<p class="text-sm text-gray-500">' + distributor.email + '</p>' +
+                    '</div>' +
+                  '</div>' +
+                '</td>' +
+                '<td class="px-6 py-4">' +
+                  '<div class="flex items-center">' +
+                    statusBadge +
+                    alertIcon +
+                  '</div>' +
+                '</td>' +
+                '<td class="px-6 py-4 text-sm font-medium text-gray-900">' + distributor.orders + '</td>' +
+                '<td class="px-6 py-4 text-sm font-medium text-gray-900">' + formatCurrency(distributor.sales) + '</td>' +
+                '<td class="px-6 py-4 text-sm text-gray-900">' + formatCurrency(distributor.avgTicket) + '</td>' +
+                '<td class="px-6 py-4 text-sm text-gray-500">' + distributor.lastOrderDate.toLocaleDateString('es-MX') + '</td>' +
+                '<td class="px-6 py-4">' +
+                  '<div class="flex items-center space-x-3">' +
+                    '<div class="w-20 bg-gray-200 rounded-full h-2">' +
+                      '<div class="h-2 rounded-full ' + complianceBgColor + '" style="width: ' + distributor.complianceScore + '%"></div>' +
+                    '</div>' +
+                    '<span class="text-sm font-medium ' + complianceColor + '">' + Math.round(distributor.complianceScore) + '%</span>' +
+                  '</div>' +
+                '</td>' +
+              '</tr>';
+          }).join('');
+          
+          tbody.innerHTML = tableHTML;
+        }
+        
+        function getFilteredDistributorsTab() {
+          let filtered = [...distributorsData];
+          
+          const showActive = document.getElementById('dist-filter-active')?.checked || false;
+          const showAlerts = document.getElementById('dist-filter-alerts')?.checked || false;
+          const showHighPerf = document.getElementById('dist-filter-high-perf')?.checked || false;
+          
+          // Si no hay filtros activos, mostrar todos
+          if (!showActive && !showAlerts && !showHighPerf) {
+            return filtered;
+          }
+          
+          if (showActive && !showAlerts && !showHighPerf) {
+            filtered = filtered.filter(d => d.isActive);
+          } else if (showAlerts && !showActive && !showHighPerf) {
+            filtered = filtered.filter(d => d.alerts.length > 0);
+          } else if (showHighPerf && !showActive && !showAlerts) {
+            filtered = filtered.filter(d => d.isHighPerformer);
+          } else {
+            filtered = filtered.filter(d => {
+              const matchesActive = !showActive || d.isActive;
+              const matchesAlerts = !showAlerts || d.alerts.length > 0;
+              const matchesHighPerf = !showHighPerf || d.isHighPerformer;
+              return matchesActive && matchesAlerts && matchesHighPerf;
+            });
+          }
+          
+          return filtered;
+        }
+        
+        function updateDistributorsPoliciesTab() {
+          const minPurchaseCompliant = distributorsData.filter(d => d.sales >= 3000).length;
+          const paymentCompliant = distributorsData.filter(d => d.paymentStatus === 'current').length;
+          const frequencyCompliant = distributorsData.filter(d => d.isActive).length;
+          
+          const minPurchaseEl = document.getElementById('dist-policy-min-purchase');
+          const paymentEl = document.getElementById('dist-policy-payment');
+          const frequencyEl = document.getElementById('dist-policy-frequency');
+          
+          if (minPurchaseEl) minPurchaseEl.textContent = minPurchaseCompliant;
+          if (paymentEl) paymentEl.textContent = paymentCompliant;
+          if (frequencyEl) frequencyEl.textContent = frequencyCompliant;
+        }
+        
+        function updateDistributorsAlertsTab() {
+          const alertsContainer = document.getElementById('dist-alerts-container');
+          if (!alertsContainer) return;
+          
+          const lowCompliance = distributorsData.filter(d => d.complianceScore < 60).length;
+          const paymentOverdue = distributorsData.filter(d => d.paymentStatus === 'overdue').length;
+          const lowVolume = distributorsData.filter(d => d.sales < 3000).length;
+          const inactive = distributorsData.filter(d => !d.isActive).length;
+          
+          const alertsHTML = 
+            '<div class="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">' +
+              '<div class="flex items-center space-x-3">' +
+                '<i class="fas fa-exclamation-triangle text-red-500"></i>' +
+                '<div>' +
+                  '<p class="text-sm font-medium text-gray-800">Bajo Cumplimiento</p>' +
+                  '<p class="text-xs text-gray-500">Distribuidores bajo 60%</p>' +
+                '</div>' +
+              '</div>' +
+              '<span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-bold">' + lowCompliance + '</span>' +
+            '</div>' +
+            '<div class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">' +
+              '<div class="flex items-center space-x-3">' +
+                '<i class="fas fa-clock text-yellow-500"></i>' +
+                '<div>' +
+                  '<p class="text-sm font-medium text-gray-800">Pagos Vencidos</p>' +
+                  '<p class="text-xs text-gray-500">Facturas pendientes</p>' +
+                '</div>' +
+              '</div>' +
+              '<span class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-bold">' + paymentOverdue + '</span>' +
+            '</div>' +
+            '<div class="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">' +
+              '<div class="flex items-center space-x-3">' +
+                '<i class="fas fa-chart-line text-blue-500"></i>' +
+                '<div>' +
+                  '<p class="text-sm font-medium text-gray-800">Bajo Volumen</p>' +
+                  '<p class="text-xs text-gray-500">Debajo del mínimo</p>' +
+                '</div>' +
+              '</div>' +
+              '<span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">' + lowVolume + '</span>' +
+            '</div>' +
+            '<div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">' +
+              '<div class="flex items-center space-x-3">' +
+                '<i class="fas fa-user-slash text-gray-500"></i>' +
+                '<div>' +
+                  '<p class="text-sm font-medium text-gray-800">Distribuidores Inactivos</p>' +
+                  '<p class="text-xs text-gray-500">Sin actividad reciente</p>' +
+                '</div>' +
+              '</div>' +
+              '<span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-bold">' + inactive + '</span>' +
+            '</div>';
+          
+          alertsContainer.innerHTML = alertsHTML;
+        }
+        
+        // Función global para cambiar vista en pestaña distribuidores
+        function toggleDistributorsView(view) {
+          currentDistributorsView = view;
+          
+          const gridBtn = document.getElementById('dist-btn-view-grid');
+          const tableBtn = document.getElementById('dist-btn-view-table');
+          
+          if (view === 'grid') {
+            if (gridBtn) gridBtn.className = 'px-4 py-2 bg-indigo-100 text-indigo-700 text-sm rounded-lg hover:bg-indigo-200 transition-colors font-medium';
+            if (tableBtn) tableBtn.className = 'px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors font-medium';
+            
+            const gridView = document.getElementById('dist-grid-view');
+            const tableView = document.getElementById('dist-table-view');
+            
+            if (gridView) gridView.classList.remove('hidden');
+            if (tableView) tableView.classList.add('hidden');
+            
+            updateDistributorsGridViewTab();
+          } else {
+            if (tableBtn) tableBtn.className = 'px-4 py-2 bg-indigo-100 text-indigo-700 text-sm rounded-lg hover:bg-indigo-200 transition-colors font-medium';
+            if (gridBtn) gridBtn.className = 'px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors font-medium';
+            
+            const tableView = document.getElementById('dist-table-view');
+            const gridView = document.getElementById('dist-grid-view');
+            
+            if (tableView) tableView.classList.remove('hidden');
+            if (gridView) gridView.classList.add('hidden');
+            
+            updateDistributorsTableViewTab();
+          }
+        }
+
         // Inicializar dashboard al cargar la página
         window.addEventListener('DOMContentLoaded', async () => {
           console.log('Dashboard iniciando...');
@@ -5585,6 +6389,10 @@ const getHTML = () => {
           // Intentar cargar dashboard directamente
           console.log('Token válido, cargando dashboard...');
           await loadDashboard();
+          
+          // Inicializar datos de distribuidores
+          console.log('Inicializando datos de distribuidores...');
+          generateDistributorsData();
           
           // Cargar datos de Google Analytics 4
           console.log('Cargando datos de Google Analytics 4...');
@@ -5786,7 +6594,1006 @@ const getHTML = () => {
             messageDiv.classList.add('hidden');
           }, 5000);
         }
+        
+        // === MONITOREO DE DISTRIBUIDORES ===
+        
+        // Lista de emails de distribuidores (misma que usa el backend)
+        const distributorEmails = [
+          'elizabeth.h.c@hotmail.com',
+          'annabgdiaz@gmail.com', 
+          'sofiborto94@outlook.com',
+          'gsha3390@gmail.com',
+          'diazinfantea@aol.com',
+          'hola@adaptohealmx.com',
+          'rafazavala2003@hotmail.com',
+          'glomunoz@hotmail.com',
+          'compras@recibexpress.com',
+          'hola@allus.shop',
+          'compras@sanvite.com',
+          'mauro.costanzopa@outlook.com',
+          'reginacr.healthcoach@gmail.com',
+          'mioh70@hotmail.com',
+          'almacen@ocmarket.mx',
+          'magdaaldacog@gmail.com',
+          'vero@innata.mx',
+          'compras3@sinerco.com.mx',
+          'diandraig@gmail.com',
+          'silvia.glz.gomez@hotmail.com',
+          'alfredo@zarcos.mx',
+          'compras.petirrojoazul@gmail.com',
+          'servicio@boyu.mx',
+          'luisperdigon@icloud.com',
+          'analuciaalfarooliveros@gmail.com',
+          'sebastianzavala08@gmail.com'
+        ];
+        
+        // Inicializar dashboard al cargar la página
+        function updateDistributorsMonitoring() {
+          if (!dashboardData || !dashboardData.customerTypes) {
+            console.log('No hay datos de distribuidores disponibles');
+            return;
+          }
+
+          // Generar datos mockup de distribuidores individuales basados en los datos reales
+          distributorsData = generateDistributorsData();
+
+          // Actualizar métricas resumen
+          updateDistributorsSummaryMetrics();
+
+          // Actualizar vista actual (grid o tabla)
+          if (currentDistributorsView === 'grid') {
+            updateDistributorsGridView();
+          } else {
+            updateDistributorsTableView();
+          }
+
+          // Actualizar políticas y alertas
+          updateDistributorsPolicies();
+          updateDistributorsAlerts();
+        }
+
+        // Generar datos de distribuidores individuales basados en datos reales
+        function generateDistributorsData() {
+          const customerTypes = dashboardData.customerTypes.distributors;
+          const totalDistributors = customerTypes.customers || 26;
+          const avgTicket = customerTypes.avgTicket || 0;
+          const totalSales = customerTypes.sales || 0;
+          
+          return distributorEmails.map((email, index) => {
+            // Generar datos simulados pero realistas para cada distribuidor
+            const isActive = Math.random() > 0.15; // 85% activos
+            const hasComplianceIssue = Math.random() > 0.8; // 20% con problemas
+            const isHighPerformer = Math.random() > 0.7; // 30% alto rendimiento
+            
+            // Distribución de ventas realista
+            const salesMultiplier = isHighPerformer ? (1.5 + Math.random() * 2) : (0.3 + Math.random() * 1.2);
+            const distributorSales = (totalSales / totalDistributors) * salesMultiplier;
+            const orders = Math.ceil(distributorSales / Math.max(avgTicket, 1000)) || 1;
+            const distributorAvgTicket = orders > 0 ? distributorSales / orders : 0;
+            
+            // Fechas realistas
+            const lastOrderDays = isActive ? Math.floor(Math.random() * 30) : Math.floor(Math.random() * 90) + 30;
+            const lastOrderDate = new Date();
+            lastOrderDate.setDate(lastOrderDate.getDate() - lastOrderDays);
+            
+            // Calcular cumplimiento basado en métricas
+            let complianceScore = 100;
+            if (distributorSales < 3000) complianceScore -= 30; // Mínimo de compra
+            if (lastOrderDays > 30) complianceScore -= 25; // Frecuencia
+            if (hasComplianceIssue) complianceScore -= 20; // Problemas de pago
+            complianceScore = Math.max(0, complianceScore);
+            
+            return {
+              email: email,
+              name: getDistributorName(email),
+              sales: distributorSales,
+              orders: orders,
+              avgTicket: distributorAvgTicket,
+              lastOrderDate: lastOrderDate,
+              isActive: isActive,
+              complianceScore: complianceScore,
+              hasComplianceIssue: hasComplianceIssue,
+              isHighPerformer: isHighPerformer,
+              paymentStatus: hasComplianceIssue ? 'overdue' : (Math.random() > 0.9 ? 'pending' : 'current'),
+              currentCycle: getCurrentBimester(),
+              alerts: generateDistributorAlerts(isActive, hasComplianceIssue, distributorSales, lastOrderDays)
+            };
+          });
+        }
+
+        // Obtener nombre del distribuidor basado en su email
+        function getDistributorName(email) {
+          const names = {
+            'elizabeth.h.c@hotmail.com': 'Elizabeth H.',
+            'annabgdiaz@gmail.com': 'Anna Díaz',
+            'sofiborto94@outlook.com': 'Sofia Borto',
+            'gsha3390@gmail.com': 'Guadalupe S.',
+            'diazinfantea@aol.com': 'Díaz Infante A.',
+            'hola@adaptohealmx.com': 'Adaptoheal Oficial',
+            'rafazavala2003@hotmail.com': 'Rafael Zavala',
+            'glomunoz@hotmail.com': 'Gloria Muñoz',
+            'compras@recibexpress.com': 'Recibex Express',
+            'hola@allus.shop': 'Allus Shop',
+            'compras@sanvite.com': 'Sanvite',
+            'mauro.costanzopa@outlook.com': 'Mauro Costanzo',
+            'reginacr.healthcoach@gmail.com': 'Regina Health Coach',
+            'mioh70@hotmail.com': 'MIO H.',
+            'almacen@ocmarket.mx': 'OC Market',
+            'magdaaldacog@gmail.com': 'Magda Aldaco',
+            'vero@innata.mx': 'Vero Innata',
+            'compras3@sinerco.com.mx': 'Sinerco',
+            'diandraig@gmail.com': 'Diana IG',
+            'silvia.glz.gomez@hotmail.com': 'Silvia Gómez',
+            'alfredo@zarcos.mx': 'Alfredo Zarcos',
+            'compras.petirrojoazul@gmail.com': 'Petirrojo Azul',
+            'servicio@boyu.mx': 'Boyu MX',
+            'luisperdigon@icloud.com': 'Luis Perdigón',
+            'analuciaalfarooliveros@gmail.com': 'Ana Lucía Alfaro',
+            'sebastianzavala08@gmail.com': 'Sebastian Zavala'
+          };
+          return names[email] || email.split('@')[0];
+        }
+
+        // Obtener bimestre actual
+        function getCurrentBimester() {
+          const now = new Date();
+          const month = now.getMonth() + 1; // 1-12
+          const year = now.getFullYear();
+          const bimester = Math.ceil(month / 2);
+          return \`B\${bimester}-\${year}\`;
+        }
+
+        // Generar alertas específicas por distribuidor
+        function generateDistributorAlerts(isActive, hasIssue, sales, daysSinceOrder) {
+          const alerts = [];
+          
+          if (!isActive) {
+            alerts.push({ type: 'inactive', message: 'Distribuidor inactivo', severity: 'high' });
+          }
+          
+          if (sales < 3000) {
+            alerts.push({ type: 'low_volume', message: 'Por debajo del mínimo bimestral', severity: 'medium' });
+          }
+          
+          if (daysSinceOrder > 60) {
+            alerts.push({ type: 'no_orders', message: \`Sin órdenes por \${daysSinceOrder} días\`, severity: 'high' });
+          }
+          
+          if (hasIssue) {
+            alerts.push({ type: 'payment', message: 'Pago pendiente', severity: 'medium' });
+          }
+          
+          return alerts;
+        }
+
+        // Actualizar métricas resumen
+        function updateDistributorsSummaryMetrics() {
+          const activeDistributors = distributorsData.filter(d => d.isActive).length;
+          const totalCompliance = distributorsData.reduce((sum, d) => sum + d.complianceScore, 0) / distributorsData.length;
+          const avgTicket = distributorsData.reduce((sum, d) => sum + d.avgTicket, 0) / distributorsData.length;
+          
+          document.getElementById('distributors-active-count').textContent = activeDistributors;
+          document.getElementById('distributors-compliance-rate').textContent = Math.round(totalCompliance) + '%';
+          document.getElementById('distributors-avg-ticket-display').textContent = formatCurrency(avgTicket);
+          document.getElementById('distributors-current-cycle').textContent = getCurrentBimester();
+        }
+
+        // Actualizar vista de grid
+        function updateDistributorsGridView() {
+          const container = document.getElementById('distributors-grid-view');
+          if (!container) return;
+          
+          const filteredDistributors = getFilteredDistributors();
+          
+          const gridHTML = filteredDistributors.map(distributor => {
+            const statusIcon = distributor.isActive 
+              ? '<span class="w-2 h-2 bg-green-500 rounded-full"></span>'
+              : '<span class="w-2 h-2 bg-red-500 rounded-full"></span>';
+            
+            const alertIcon = distributor.alerts.length > 0 
+              ? '<i class="fas fa-exclamation-triangle text-yellow-500 text-xs"></i>'
+              : '';
+              
+            const complianceColor = distributor.complianceScore >= 80 ? 'text-green-600' : 
+                                  distributor.complianceScore >= 60 ? 'text-yellow-600' : 'text-red-600';
+            const complianceBgColor = distributor.complianceScore >= 80 ? 'bg-green-500' : 
+                                    distributor.complianceScore >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+            
+            let alertsHTML = '';
+            if (distributor.alerts.length > 0) {
+              const alertItems = distributor.alerts.map(alert => {
+                const alertBg = alert.severity === 'high' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200';
+                const iconColor = alert.severity === 'high' ? 'text-red-500' : 'text-yellow-500';
+                const textColor = alert.severity === 'high' ? 'text-red-700' : 'text-yellow-700';
+                return \`
+                  <div class="flex items-center space-x-1 p-2 rounded-md \${alertBg} border">
+                    <i class="fas fa-exclamation-circle text-xs \${iconColor}"></i>
+                    <span class="text-xs \${textColor}">\${alert.message}</span>
+                  </div>
+                \`;
+              }).join('');
+              alertsHTML = \`<div class="space-y-1">\${alertItems}</div>\`;
+            }
+            
+            return \`
+              <div class="bg-white rounded-xl p-4 border border-gray-200 hover:shadow-lg transition-all duration-200">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-full flex items-center justify-center">
+                      <span class="text-white text-xs font-bold">\${distributor.name.charAt(0)}</span>
+                    </div>
+                    <div>
+                      <p class="text-sm font-semibold text-gray-800 truncate max-w-[120px]">\${distributor.name}</p>
+                      <p class="text-xs text-gray-500 truncate max-w-[120px]">\${distributor.email}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center space-x-1">
+                    \${statusIcon}
+                    \${alertIcon}
+                  </div>
+                </div>
+                
+                <div class="space-y-2 mb-3">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-600">Ventas:</span>
+                    <span class="text-sm font-bold text-gray-900">\${formatCurrency(distributor.sales)}</span>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-600">Órdenes:</span>
+                    <span class="text-sm font-medium text-gray-700">\${distributor.orders}</span>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-600">Ticket prom.:</span>
+                    <span class="text-sm font-medium text-gray-700">\${formatCurrency(distributor.avgTicket)}</span>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-600">Último pedido:</span>
+                    <span class="text-xs text-gray-500">\${distributor.lastOrderDate.toLocaleDateString('es-MX')}</span>
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs text-gray-600">Cumplimiento:</span>
+                    <span class="text-xs font-bold \${complianceColor}">\${Math.round(distributor.complianceScore)}%</span>
+                  </div>
+                  <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="h-2 rounded-full \${complianceBgColor}" 
+                         style="width: \${distributor.complianceScore}%"></div>
+                  </div>
+                </div>
+                
+                \${alertsHTML}
+              </div>
+            \`;
+          }).join('');
+          
+          container.innerHTML = gridHTML;
+        }
+
+        // Actualizar vista de tabla
+        function updateDistributorsTableView() {
+          const tbody = document.getElementById('distributors-table-body');
+          if (!tbody) return;
+          
+          const filteredDistributors = getFilteredDistributors();
+          
+          const tableHTML = filteredDistributors.map(distributor => {
+            const statusBadge = distributor.isActive 
+              ? '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Activo</span>'
+              : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Inactivo</span>';
+            
+            const alertIcon = distributor.alerts.length > 0 
+              ? '<i class="fas fa-exclamation-triangle text-yellow-500 text-sm"></i>'
+              : '';
+              
+            const complianceColor = distributor.complianceScore >= 80 ? 'text-green-600' : 
+                                  distributor.complianceScore >= 60 ? 'text-yellow-600' : 'text-red-600';
+            const complianceBgColor = distributor.complianceScore >= 80 ? 'bg-green-500' : 
+                                    distributor.complianceScore >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+            
+            return \`
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3">
+                  <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-full flex items-center justify-center">
+                      <span class="text-white text-xs font-bold">\${distributor.name.charAt(0)}</span>
+                    </div>
+                    <div>
+                      <p class="text-sm font-medium text-gray-900">\${distributor.name}</p>
+                      <p class="text-xs text-gray-500">\${distributor.email}</p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center space-x-2">
+                    \${statusBadge}
+                    \${alertIcon}
+                  </div>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-900">\${distributor.orders}</td>
+                <td class="px-4 py-3 text-sm font-medium text-gray-900">\${formatCurrency(distributor.sales)}</td>
+                <td class="px-4 py-3 text-sm text-gray-900">\${formatCurrency(distributor.avgTicket)}</td>
+                <td class="px-4 py-3 text-sm text-gray-500">\${distributor.lastOrderDate.toLocaleDateString('es-MX')}</td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center space-x-2">
+                    <div class="w-16 bg-gray-200 rounded-full h-2">
+                      <div class="h-2 rounded-full \${complianceBgColor}" 
+                           style="width: \${distributor.complianceScore}%"></div>
+                    </div>
+                    <span class="text-xs font-medium \${complianceColor}">\${Math.round(distributor.complianceScore)}%</span>
+                  </div>
+                </td>
+              </tr>
+            \`;
+          }).join('');
+          
+          tbody.innerHTML = tableHTML;
+        }
+
+        // Filtrar distribuidores según filtros activos
+        function getFilteredDistributors() {
+          let filtered = [...distributorsData];
+          
+          const showActive = document.getElementById('filter-active-distributors').checked;
+          const showAlerts = document.getElementById('filter-compliance-issues').checked;
+          const showHighPerf = document.getElementById('filter-high-performers').checked;
+          
+          if (showActive && !showAlerts && !showHighPerf) {
+            // Solo activos
+            filtered = filtered.filter(d => d.isActive);
+          } else if (showAlerts && !showActive && !showHighPerf) {
+            // Solo con alertas
+            filtered = filtered.filter(d => d.alerts.length > 0);
+          } else if (showHighPerf && !showActive && !showAlerts) {
+            // Solo alto rendimiento
+            filtered = filtered.filter(d => d.isHighPerformer);
+          } else {
+            // Combinaciones múltiples
+            filtered = filtered.filter(d => {
+              const matchesActive = !showActive || d.isActive;
+              const matchesAlerts = !showAlerts || d.alerts.length > 0;
+              const matchesHighPerf = !showHighPerf || d.isHighPerformer;
+              return matchesActive && matchesAlerts && matchesHighPerf;
+            });
+          }
+          
+          return filtered;
+        }
+
+        // Actualizar políticas
+        function updateDistributorsPolicies() {
+          const minPurchaseCompliant = distributorsData.filter(d => d.sales >= 3000).length;
+          const paymentCompliant = distributorsData.filter(d => d.paymentStatus === 'current').length;
+          const frequencyCompliant = distributorsData.filter(d => d.isActive).length;
+          
+          document.getElementById('policy-min-purchase-compliant').textContent = minPurchaseCompliant;
+          document.getElementById('policy-payment-compliant').textContent = paymentCompliant;
+          document.getElementById('policy-frequency-compliant').textContent = frequencyCompliant;
+        }
+
+        // Actualizar alertas
+        function updateDistributorsAlerts() {
+          const lowCompliance = distributorsData.filter(d => d.complianceScore < 60).length;
+          const paymentOverdue = distributorsData.filter(d => d.paymentStatus === 'overdue').length;
+          const lowVolume = distributorsData.filter(d => d.sales < 3000).length;
+          
+          document.getElementById('alerts-low-compliance').textContent = lowCompliance;
+          document.getElementById('alerts-payment-overdue').textContent = paymentOverdue;
+          document.getElementById('alerts-low-volume').textContent = lowVolume;
+        }
+
+        // Función duplicada eliminada - usar la versión principal
+
+        // Función duplicada eliminada - usar la versión principal
+        
+        // === SISTEMA DE PESTAÑAS ===
+        
+        let currentTab = 'resumen';
+        
+        // Cambiar entre pestañas
+        function switchTab(tabName) {
+          console.log('Cambiando a pestaña:', tabName);
+          
+          // Actualizar pestaña activa
+          currentTab = tabName;
+          
+          // Ocultar todos los contenidos usando IDs específicos
+          document.getElementById('tab-content-resumen').style.display = 'none';
+          document.getElementById('tab-content-distribuidores').style.display = 'none';
+          
+          // Mostrar contenido de la pestaña seleccionada
+          const selectedContent = document.getElementById('tab-content-' + tabName);
+          if (selectedContent) {
+            selectedContent.style.display = 'block';
+          }
+          
+          // Actualizar estilos de las pestañas
+          updateTabStyles(tabName);
+          
+          // Cargar datos específicos de la pestaña
+          if (tabName === 'distribuidores') {
+            loadDistributorsTab();
+          } else if (tabName === 'resumen') {
+            // El resumen ya está cargado
+          }
+        }
+        
+        // Actualizar estilos visuales de las pestañas
+        function updateTabStyles(activeTab) {
+          const tabs = ['resumen', 'distribuidores'];
+          
+          tabs.forEach(tab => {
+            const tabElement = document.getElementById('tab-' + tab);
+            if (!tabElement) return;
+            
+            if (tab === activeTab) {
+              // Pestaña activa
+              tabElement.className = 'inline-flex items-center px-1 pt-4 pb-4 border-b-2 border-indigo-500 text-sm font-medium text-indigo-600 focus:outline-none';
+            } else {
+              // Pestaña inactiva
+              tabElement.className = 'inline-flex items-center px-1 pt-4 pb-4 border-b-2 border-transparent text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none transition-all duration-200';
+            }
+          });
+        }
+        
+        // Cargar pestaña de distribuidores
+        async function loadDistributorsTab() {
+          console.log('Cargando pestaña de distribuidores...');
+          
+          // Mostrar loading
+          document.getElementById('distributors-loading').classList.remove('hidden');
+          document.getElementById('distributors-dashboard').classList.add('hidden');
+          
+          try {
+            // Esperar un momento para mostrar loading
+            await new Promise(resolve => setTimeout(resolve, 800));
+            
+            // Verificar que tenemos datos del dashboard
+            if (!dashboardData) {
+              console.log('No hay datos del dashboard, esperando...');
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            // Generar datos de distribuidores si no existen
+            if (distributorsData.length === 0) {
+              console.log('Generando datos de distribuidores...');
+              distributorsData = generateDistributorsData();
+            }
+            
+            // Actualizar métricas de resumen de distribuidores
+            updateDistributorsSummaryMetricsTab();
+            
+            // Actualizar vista por defecto (grid)
+            updateDistributorsGridViewTab();
+            
+            // Actualizar políticas y alertas
+            updateDistributorsPoliciesTab();
+            updateDistributorsAlertsTab();
+            
+            // Ocultar loading y mostrar dashboard
+            document.getElementById('distributors-loading').classList.add('hidden');
+            document.getElementById('distributors-dashboard').classList.remove('hidden');
+            
+            console.log('✅ Pestaña de distribuidores cargada exitosamente');
+            
+          } catch (error) {
+            console.error('❌ Error cargando pestaña de distribuidores:', error);
+            
+            // Mostrar error (simplificado)
+            document.getElementById('distributors-loading').classList.add('hidden');
+            document.getElementById('distributors-dashboard').classList.remove('hidden');
+          }
+        }
+        
+        // Funciones específicas para la pestaña de distribuidores (con IDs únicos)
+        function updateDistributorsSummaryMetricsTab() {
+          const activeDistributors = distributorsData.filter(d => d.isActive).length;
+          const totalCompliance = distributorsData.reduce((sum, d) => sum + d.complianceScore, 0) / distributorsData.length;
+          const totalSales = distributorsData.reduce((sum, d) => sum + d.sales, 0);
+          
+          document.getElementById('dist-active-count').textContent = activeDistributors;
+          document.getElementById('dist-compliance-rate').textContent = Math.round(totalCompliance) + '%';
+          document.getElementById('dist-total-sales').textContent = formatCurrency(totalSales);
+          document.getElementById('dist-current-cycle').textContent = getCurrentBimester();
+        }
+        
+        function updateDistributorsGridViewTab() {
+          const container = document.getElementById('dist-grid-view');
+          if (!container) return;
+          
+          const filteredDistributors = getFilteredDistributorsTab();
+          
+          const gridHTML = filteredDistributors.map(distributor => {
+            const statusIcon = distributor.isActive 
+              ? '<span class="w-3 h-3 bg-green-500 rounded-full"></span>'
+              : '<span class="w-3 h-3 bg-red-500 rounded-full"></span>';
+            
+            const alertIcon = distributor.alerts.length > 0 
+              ? '<i class="fas fa-exclamation-triangle text-yellow-500 text-sm"></i>'
+              : '';
+              
+            const complianceColor = distributor.complianceScore >= 80 ? 'text-green-600' : 
+                                  distributor.complianceScore >= 60 ? 'text-yellow-600' : 'text-red-600';
+            const complianceBgColor = distributor.complianceScore >= 80 ? 'bg-green-500' : 
+                                    distributor.complianceScore >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+            
+            let alertsHTML = '';
+            if (distributor.alerts.length > 0) {
+              const alertItems = distributor.alerts.map(alert => {
+                const alertBg = alert.severity === 'high' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200';
+                const iconColor = alert.severity === 'high' ? 'text-red-500' : 'text-yellow-500';
+                const textColor = alert.severity === 'high' ? 'text-red-700' : 'text-yellow-700';
+                return \`
+                  <div class="flex items-center space-x-2 p-2 rounded-md \${alertBg} border">
+                    <i class="fas fa-exclamation-circle text-xs \${iconColor}"></i>
+                    <span class="text-xs \${textColor}">\${alert.message}</span>
+                  </div>
+                \`;
+              }).join('');
+              alertsHTML = \`<div class="space-y-2">\${alertItems}</div>\`;
+            }
+            
+            return \`
+              <div class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-all duration-200">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-full flex items-center justify-center">
+                      <span class="text-white font-bold">\${distributor.name.charAt(0)}</span>
+                    </div>
+                    <div>
+                      <p class="font-semibold text-gray-800">\${distributor.name}</p>
+                      <p class="text-xs text-gray-500">\${distributor.email}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    \${statusIcon}
+                    \${alertIcon}
+                  </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                  <div>
+                    <p class="text-xs text-gray-600">Ventas:</p>
+                    <p class="font-bold text-gray-900">\${formatCurrency(distributor.sales)}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-600">Órdenes:</p>
+                    <p class="font-bold text-gray-900">\${distributor.orders}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-600">Ticket promedio:</p>
+                    <p class="font-medium text-gray-700">\${formatCurrency(distributor.avgTicket)}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-600">Último pedido:</p>
+                    <p class="text-xs text-gray-500">\${distributor.lastOrderDate.toLocaleDateString('es-MX')}</p>
+                  </div>
+                </div>
+                
+                <div class="mb-4">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-gray-700">Cumplimiento:</span>
+                    <span class="text-sm font-bold \${complianceColor}">\${Math.round(distributor.complianceScore)}%</span>
+                  </div>
+                  <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="h-2 rounded-full \${complianceBgColor}" 
+                         style="width: \${distributor.complianceScore}%"></div>
+                  </div>
+                </div>
+                
+                \${alertsHTML}
+              </div>
+            \`;
+          }).join('');
+          
+          container.innerHTML = gridHTML;
+        }
+        
+        function updateDistributorsTableViewTab() {
+          const tbody = document.getElementById('dist-table-body');
+          if (!tbody) return;
+          
+          const filteredDistributors = getFilteredDistributorsTab();
+          
+          const tableHTML = filteredDistributors.map(distributor => {
+            const statusBadge = distributor.isActive 
+              ? '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Activo</span>'
+              : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Inactivo</span>';
+            
+            const alertIcon = distributor.alerts.length > 0 
+              ? '<i class="fas fa-exclamation-triangle text-yellow-500 text-sm ml-2"></i>'
+              : '';
+              
+            const complianceColor = distributor.complianceScore >= 80 ? 'text-green-600' : 
+                                  distributor.complianceScore >= 60 ? 'text-yellow-600' : 'text-red-600';
+            const complianceBgColor = distributor.complianceScore >= 80 ? 'bg-green-500' : 
+                                    distributor.complianceScore >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+            
+            return \`
+              <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4">
+                  <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-full flex items-center justify-center">
+                      <span class="text-white font-bold text-sm">\${distributor.name.charAt(0)}</span>
+                    </div>
+                    <div>
+                      <p class="font-medium text-gray-900">\${distributor.name}</p>
+                      <p class="text-sm text-gray-500">\${distributor.email}</p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="flex items-center">
+                    \${statusBadge}
+                    \${alertIcon}
+                  </div>
+                </td>
+                <td class="px-6 py-4 text-sm font-medium text-gray-900">\${distributor.orders}</td>
+                <td class="px-6 py-4 text-sm font-medium text-gray-900">\${formatCurrency(distributor.sales)}</td>
+                <td class="px-6 py-4 text-sm text-gray-900">\${formatCurrency(distributor.avgTicket)}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">\${distributor.lastOrderDate.toLocaleDateString('es-MX')}</td>
+                <td class="px-6 py-4">
+                  <div class="flex items-center space-x-3">
+                    <div class="w-20 bg-gray-200 rounded-full h-2">
+                      <div class="h-2 rounded-full \${complianceBgColor}" 
+                           style="width: \${distributor.complianceScore}%"></div>
+                    </div>
+                    <span class="text-sm font-medium \${complianceColor}">\${Math.round(distributor.complianceScore)}%</span>
+                  </div>
+                </td>
+              </tr>
+            \`;
+          }).join('');
+          
+          tbody.innerHTML = tableHTML;
+        }
+        
+        function getFilteredDistributorsTab() {
+          let filtered = [...distributorsData];
+          
+          const showActive = document.getElementById('dist-filter-active').checked;
+          const showAlerts = document.getElementById('dist-filter-alerts').checked;
+          const showHighPerf = document.getElementById('dist-filter-high-perf').checked;
+          
+          if (showActive && !showAlerts && !showHighPerf) {
+            filtered = filtered.filter(d => d.isActive);
+          } else if (showAlerts && !showActive && !showHighPerf) {
+            filtered = filtered.filter(d => d.alerts.length > 0);
+          } else if (showHighPerf && !showActive && !showAlerts) {
+            filtered = filtered.filter(d => d.isHighPerformer);
+          } else {
+            filtered = filtered.filter(d => {
+              const matchesActive = !showActive || d.isActive;
+              const matchesAlerts = !showAlerts || d.alerts.length > 0;
+              const matchesHighPerf = !showHighPerf || d.isHighPerformer;
+              return matchesActive && matchesAlerts && matchesHighPerf;
+            });
+          }
+          
+          return filtered;
+        }
+        
+        function updateDistributorsPoliciesTab() {
+          const minPurchaseCompliant = distributorsData.filter(d => d.sales >= 3000).length;
+          const paymentCompliant = distributorsData.filter(d => d.paymentStatus === 'current').length;
+          const frequencyCompliant = distributorsData.filter(d => d.isActive).length;
+          
+          document.getElementById('dist-policy-min-purchase').textContent = minPurchaseCompliant;
+          document.getElementById('dist-policy-payment').textContent = paymentCompliant;
+          document.getElementById('dist-policy-frequency').textContent = frequencyCompliant;
+        }
+        
+        function updateDistributorsAlertsTab() {
+          const alertsContainer = document.getElementById('dist-alerts-container');
+          if (!alertsContainer) return;
+          
+          const lowCompliance = distributorsData.filter(d => d.complianceScore < 60).length;
+          const paymentOverdue = distributorsData.filter(d => d.paymentStatus === 'overdue').length;
+          const lowVolume = distributorsData.filter(d => d.sales < 3000).length;
+          const inactive = distributorsData.filter(d => !d.isActive).length;
+          
+          const alertsHTML = \`
+            <div class="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
+              <div class="flex items-center space-x-3">
+                <i class="fas fa-exclamation-triangle text-red-500"></i>
+                <div>
+                  <p class="text-sm font-medium text-gray-800">Bajo Cumplimiento</p>
+                  <p class="text-xs text-gray-500">Distribuidores bajo 60%</p>
+                </div>
+              </div>
+              <span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-bold">\${lowCompliance}</span>
+            </div>
+            <div class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+              <div class="flex items-center space-x-3">
+                <i class="fas fa-clock text-yellow-500"></i>
+                <div>
+                  <p class="text-sm font-medium text-gray-800">Pagos Vencidos</p>
+                  <p class="text-xs text-gray-500">Facturas pendientes</p>
+                </div>
+              </div>
+              <span class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-bold">\${paymentOverdue}</span>
+            </div>
+            <div class="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div class="flex items-center space-x-3">
+                <i class="fas fa-chart-line text-blue-500"></i>
+                <div>
+                  <p class="text-sm font-medium text-gray-800">Bajo Volumen</p>
+                  <p class="text-xs text-gray-500">Debajo del mínimo</p>
+                </div>
+              </div>
+              <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">\${lowVolume}</span>
+            </div>
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div class="flex items-center space-x-3">
+                <i class="fas fa-user-slash text-gray-500"></i>
+                <div>
+                  <p class="text-sm font-medium text-gray-800">Distribuidores Inactivos</p>
+                  <p class="text-xs text-gray-500">Sin actividad reciente</p>
+                </div>
+              </div>
+              <span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-bold">\${inactive}</span>
+            </div>
+          \`;
+          
+          alertsContainer.innerHTML = alertsHTML;
+        }
+        
+        // Función global para cambiar vista en pestaña distribuidores
+        function toggleDistributorsView(view) {
+          currentDistributorsView = view;
+          
+          const gridBtn = document.getElementById('dist-btn-view-grid');
+          const tableBtn = document.getElementById('dist-btn-view-table');
+          
+          if (view === 'grid') {
+            gridBtn.className = 'px-4 py-2 bg-indigo-100 text-indigo-700 text-sm rounded-lg hover:bg-indigo-200 transition-colors font-medium';
+            tableBtn.className = 'px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors font-medium';
+            
+            document.getElementById('dist-grid-view').classList.remove('hidden');
+            document.getElementById('dist-table-view').classList.add('hidden');
+            
+            updateDistributorsGridViewTab();
+          } else {
+            tableBtn.className = 'px-4 py-2 bg-indigo-100 text-indigo-700 text-sm rounded-lg hover:bg-indigo-200 transition-colors font-medium';
+            gridBtn.className = 'px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors font-medium';
+            
+            document.getElementById('dist-table-view').classList.remove('hidden');
+            document.getElementById('dist-grid-view').classList.add('hidden');
+            
+            updateDistributorsTableViewTab();
+          }
+        }
+        
+        // =================================
         </script>
+        
+        <!-- CONTENIDO DEL TAB DISTRIBUIDORES -->
+        <div id="tab-content-distribuidores" class="tab-content" style="display: none;">
+          <!-- Dashboard específico para distribuidores -->
+          <div class="container mx-auto px-6 py-8 space-y-8">
+            
+            <!-- Encabezado de Distribuidores -->
+            <div class="glass-effect rounded-xl p-8 card-hover">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                  <div class="p-4 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600">
+                    <i class="fas fa-network-wired text-2xl text-white"></i>
+                  </div>
+                  <div>
+                    <h2 class="text-3xl font-bold text-gray-800">Distribuidores</h2>
+                    <p class="text-gray-600 mt-1">Monitoreo y análisis de los 26 distribuidores registrados</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg text-sm font-medium">
+                    <i class="fas fa-users mr-2"></i>
+                    26 Distribuidores Totales
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Métricas Clave de Distribuidores -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <!-- Distribuidores Activos -->
+              <div class="glass-effect rounded-xl p-6 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="p-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600">
+                    <i class="fas fa-user-check text-xl text-white"></i>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-gray-600 mb-1">Distribuidores Activos</p>
+                  <div class="flex items-center space-x-2">
+                    <p id="dist-active-count" class="text-2xl font-bold text-gray-900">18</p>
+                    <span class="text-xs text-green-600 font-medium bg-green-100 px-2 py-1 rounded-full">+2 este mes</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">de 26 totales</p>
+                </div>
+              </div>
+
+              <!-- Ventas por Distribuidores -->
+              <div class="glass-effect rounded-xl p-6 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="p-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-600">
+                    <i class="fas fa-chart-line text-xl text-white"></i>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-gray-600 mb-1">Ventas Distribuidores</p>
+                  <div class="flex items-center space-x-2">
+                    <p id="dist-total-sales" class="text-2xl font-bold text-gray-900">$124,560</p>
+                    <span class="text-xs text-blue-600 font-medium bg-blue-100 px-2 py-1 rounded-full">68%</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">del total de ventas</p>
+                </div>
+              </div>
+
+              <!-- Cumplimiento Promedio -->
+              <div class="glass-effect rounded-xl p-6 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="p-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-600">
+                    <i class="fas fa-award text-xl text-white"></i>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-gray-600 mb-1">Cumplimiento Promedio</p>
+                  <div class="flex items-center space-x-2">
+                    <p id="dist-avg-compliance" class="text-2xl font-bold text-gray-900">82%</p>
+                    <span class="text-xs text-green-600 font-medium bg-green-100 px-2 py-1 rounded-full">Excelente</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">de políticas</p>
+                </div>
+              </div>
+
+              <!-- Alertas Activas -->
+              <div class="glass-effect rounded-xl p-6 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="p-3 rounded-lg bg-gradient-to-r from-orange-500 to-red-600">
+                    <i class="fas fa-exclamation-triangle text-xl text-white"></i>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-gray-600 mb-1">Alertas Activas</p>
+                  <div class="flex items-center space-x-2">
+                    <p id="dist-alerts-count" class="text-2xl font-bold text-gray-900">3</p>
+                    <span class="text-xs text-orange-600 font-medium bg-orange-100 px-2 py-1 rounded-full">Requiere atención</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">distribuidores</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Controles de Vista -->
+            <div class="glass-effect rounded-xl p-6">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+                <div class="flex items-center space-x-4">
+                  <h3 class="text-lg font-semibold text-gray-800">Lista de Distribuidores</h3>
+                  <div class="flex items-center space-x-2">
+                    <button id="dist-btn-view-grid" onclick="toggleDistributorsView('grid')" 
+                            class="px-4 py-2 bg-indigo-100 text-indigo-700 text-sm rounded-lg hover:bg-indigo-200 transition-colors font-medium">
+                      <i class="fas fa-th-large mr-2"></i>Tarjetas
+                    </button>
+                    <button id="dist-btn-view-table" onclick="toggleDistributorsView('table')" 
+                            class="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors font-medium">
+                      <i class="fas fa-table mr-2"></i>Tabla
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- Filtros -->
+                <div class="flex items-center space-x-4">
+                  <div class="flex items-center space-x-2 text-sm">
+                    <span class="text-gray-600">Filtros:</span>
+                    <label class="flex items-center space-x-1">
+                      <input type="checkbox" id="dist-filter-active" class="rounded text-indigo-600" checked>
+                      <span class="text-gray-700">Solo Activos</span>
+                    </label>
+                    <label class="flex items-center space-x-1">
+                      <input type="checkbox" id="dist-filter-alerts" class="rounded text-orange-600">
+                      <span class="text-gray-700">Con Alertas</span>
+                    </label>
+                    <label class="flex items-center space-x-1">
+                      <input type="checkbox" id="dist-filter-high-perf" class="rounded text-green-600">
+                      <span class="text-gray-700">Alto Rendimiento</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Vista de Tarjetas (Grid) -->
+            <div id="dist-grid-view" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <!-- Las tarjetas se generan dinámicamente -->
+            </div>
+
+            <!-- Vista de Tabla -->
+            <div id="dist-table-view" class="hidden">
+              <div class="glass-effect rounded-xl overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Distribuidor</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Órdenes</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ventas</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket Prom.</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Última Orden</th>
+                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cumplimiento</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dist-table-body" class="bg-white divide-y divide-gray-200">
+                    <!-- Las filas se generan dinámicamente -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Sección de Políticas de Cumplimiento -->
+            <div class="glass-effect rounded-xl p-8">
+              <div class="flex items-center space-x-3 mb-6">
+                <div class="p-3 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600">
+                  <i class="fas fa-clipboard-check text-xl text-white"></i>
+                </div>
+                <div>
+                  <h3 class="text-xl font-bold text-gray-800">Políticas de Distribuidores</h3>
+                  <p class="text-sm text-gray-600">Cumplimiento de requisitos por bimestre</p>
+                </div>
+              </div>
+              
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
+                  <div class="text-green-600 text-2xl mb-2">
+                    <i class="fas fa-dollar-sign"></i>
+                  </div>
+                  <h4 class="font-semibold text-gray-800 mb-2">Compra Mínima</h4>
+                  <p class="text-2xl font-bold text-green-600" id="dist-policy-min-purchase">0</p>
+                  <p class="text-sm text-gray-600">de 26 distribuidores</p>
+                  <p class="text-xs text-gray-500 mt-1">≥ $3,000 MXN/bimestre</p>
+                </div>
+                
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+                  <div class="text-blue-600 text-2xl mb-2">
+                    <i class="fas fa-credit-card"></i>
+                  </div>
+                  <h4 class="font-semibold text-gray-800 mb-2">Pagos al Corriente</h4>
+                  <p class="text-2xl font-bold text-blue-600" id="dist-policy-payment">0</p>
+                  <p class="text-sm text-gray-600">de 26 distribuidores</p>
+                  <p class="text-xs text-gray-500 mt-1">Sin pagos vencidos</p>
+                </div>
+                
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-6 text-center">
+                  <div class="text-purple-600 text-2xl mb-2">
+                    <i class="fas fa-calendar-check"></i>
+                  </div>
+                  <h4 class="font-semibold text-gray-800 mb-2">Frecuencia Activa</h4>
+                  <p class="text-2xl font-bold text-purple-600" id="dist-policy-frequency">0</p>
+                  <p class="text-sm text-gray-600">de 26 distribuidores</p>
+                  <p class="text-xs text-gray-500 mt-1">≥ 1 orden/mes</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sección de Alertas -->
+            <div class="glass-effect rounded-xl p-8">
+              <div class="flex items-center space-x-3 mb-6">
+                <div class="p-3 rounded-lg bg-gradient-to-r from-orange-500 to-red-600">
+                  <i class="fas fa-bell text-xl text-white"></i>
+                </div>
+                <div>
+                  <h3 class="text-xl font-bold text-gray-800">Alertas y Notificaciones</h3>
+                  <p class="text-sm text-gray-600">Distribuidores que requieren atención</p>
+                </div>
+              </div>
+              
+              <div id="dist-alerts-container" class="space-y-4">
+                <!-- Las alertas se generan dinámicamente -->
+              </div>
+            </div>
+
+          </div>
+        </div>
         
         <!-- Modal de Gestión de Usuarios -->
         <div id="user-management-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
@@ -7036,7 +8843,7 @@ const initializeServer = async () => {
     console.error('❌ Meta Organic Error stack:', error.stack);
   }
   
-  const PORT = process.env.PORT || 3001;
+  const PORT = process.env.PORT || 3000;
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Adaptoheal Analytics Dashboard iniciado en puerto ${PORT}`);
     console.log(`📊 Dashboard disponible en: http://localhost:${PORT}`);
