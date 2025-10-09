@@ -293,11 +293,182 @@ const testConnection = async () => {
   }
 };
 
+// Función para obtener órdenes históricas desde PostgreSQL (tabla data_historica)
+const getHistoricalOrdersFromDB = async (month, year) => {
+  try {
+    console.log(`🗄️ Consultando PostgreSQL - data_historica para mes: ${month}, año: ${year}`);
+    
+    // Query para obtener datos históricos filtrados por mes, año y estado pagado
+    const query = `
+      SELECT 
+        "Order Number" as order_number,
+        "Date" as date_created,
+        "Financial Status" as status,
+        "Total" as total,
+        "Paid at" as date_paid,
+        "Customer Email" as billing_email,
+        "Customer First Name" as billing_first_name,
+        "Customer Last Name" as billing_last_name,
+        "Shipping Street" as shipping_address_1,
+        "Shipping City" as shipping_city,
+        "Shipping Province" as shipping_state,
+        "Shipping Country" as shipping_country,
+        "Shipping Zip" as shipping_postcode,
+        "Lineitem name" as product_name,
+        "Lineitem quantity" as quantity,
+        "Lineitem price" as product_price,
+        "Lineitem sku" as product_sku,
+        "Discount Code" as coupon_code,
+        "Discount Amount" as coupon_amount,
+        "Shipping Method" as shipping_method,
+        "Taxes" as total_tax
+      FROM data_historica 
+      WHERE EXTRACT(MONTH FROM TO_DATE("Date", 'MM/DD/YYYY')) = $1
+        AND EXTRACT(YEAR FROM TO_DATE("Date", 'MM/DD/YYYY')) = $2
+        AND "Financial Status" = 'paid'
+      ORDER BY TO_DATE("Date", 'MM/DD/YYYY') DESC
+    `;
+    
+    const result = await pool.query(query, [month, year]);
+    
+    if (result.rows.length === 0) {
+      console.log(`ℹ️ No se encontraron órdenes para ${month}/${year}`);
+      return { success: true, orders: [], totalRecords: 0 };
+    }
+    
+    console.log(`📊 Registros encontrados en PostgreSQL: ${result.rows.length}`);
+    
+    // Convertir los datos a formato WooCommerce
+    const wooCommerceOrders = convertPostgreSQLToWooCommerce(result.rows);
+    
+    console.log(`✅ Órdenes convertidas a formato WooCommerce: ${wooCommerceOrders.length}`);
+    
+    return {
+      success: true,
+      orders: wooCommerceOrders,
+      totalRecords: result.rows.length
+    };
+    
+  } catch (error) {
+    console.error('❌ Error consultando data_historica en PostgreSQL:', error);
+    return { 
+      success: false, 
+      orders: [], 
+      error: error.message,
+      totalRecords: 0
+    };
+  }
+};
+
+// Función para convertir datos de PostgreSQL al formato WooCommerce API
+const convertPostgreSQLToWooCommerce = (postgresData) => {
+  try {
+    // Agrupar por order_number ya que pueden haber múltiples productos por orden
+    const ordersMap = new Map();
+    
+    postgresData.forEach(row => {
+      const orderNumber = row.order_number;
+      
+      if (!ordersMap.has(orderNumber)) {
+        // Crear nueva orden
+        const order = {
+          id: parseInt(orderNumber),
+          number: orderNumber,
+          status: 'completed', // Las órdenes históricas pagadas se consideran completadas
+          date_created: convertDateFormat(row.date_created),
+          date_paid: row.date_paid ? convertDateFormat(row.date_paid) : null,
+          total: parseFloat(row.total || '0'),
+          total_tax: parseFloat(row.total_tax || '0'),
+          currency: 'MXN',
+          billing: {
+            email: row.billing_email || '',
+            first_name: row.billing_first_name || '',
+            last_name: row.billing_last_name || ''
+          },
+          shipping: {
+            address_1: row.shipping_address_1 || '',
+            city: row.shipping_city || '',
+            state: row.shipping_state || '',
+            country: row.shipping_country || 'MX',
+            postcode: row.shipping_postcode || ''
+          },
+          line_items: [],
+          coupon_lines: [],
+          shipping_lines: [
+            {
+              method_title: row.shipping_method || 'Envío estándar',
+              total: '0' // Se calculará si es necesario
+            }
+          ]
+        };
+        
+        // Agregar cupón si existe
+        if (row.coupon_code && row.coupon_amount) {
+          order.coupon_lines.push({
+            code: row.coupon_code,
+            discount: parseFloat(row.coupon_amount)
+          });
+        }
+        
+        ordersMap.set(orderNumber, order);
+      }
+      
+      // Agregar producto a la orden existente
+      const order = ordersMap.get(orderNumber);
+      if (row.product_name) {
+        order.line_items.push({
+          id: Math.floor(Math.random() * 1000000), // ID temporal
+          name: row.product_name,
+          quantity: parseInt(row.quantity || '1'),
+          price: parseFloat(row.product_price || '0'),
+          total: (parseFloat(row.product_price || '0') * parseInt(row.quantity || '1')).toString(),
+          sku: row.product_sku || ''
+        });
+      }
+    });
+    
+    const orders = Array.from(ordersMap.values());
+    
+    // Filtrar solo órdenes pagadas (redundante pero por seguridad)
+    const paidOrders = orders.filter(order => 
+      order.date_paid !== null || order.status === 'completed'
+    );
+    
+    console.log(`📋 Órdenes procesadas: ${orders.length}, Órdenes pagadas: ${paidOrders.length}`);
+    
+    return paidOrders;
+    
+  } catch (error) {
+    console.error('❌ Error convirtiendo datos PostgreSQL a WooCommerce:', error);
+    return [];
+  }
+};
+
+// Función auxiliar para convertir formato de fecha MM/DD/YYYY a ISO
+const convertDateFormat = (dateStr) => {
+  try {
+    if (!dateStr) return new Date().toISOString();
+    
+    // Si ya está en formato ISO, devolverlo
+    if (dateStr.includes('T')) return dateStr;
+    
+    // Convertir MM/DD/YYYY a Date y luego a ISO
+    const [month, day, year] = dateStr.split('/');
+    const date = new Date(year, month - 1, day);
+    return date.toISOString();
+    
+  } catch (error) {
+    console.error('❌ Error convirtiendo fecha:', dateStr, error);
+    return new Date().toISOString();
+  }
+};
+
 module.exports = {
   pool,
   getShippingDataByOrderId,
   getBulkShippingCosts,
   getShippingStats,
   getAllShipments,
-  testConnection
+  testConnection,
+  getHistoricalOrdersFromDB
 };

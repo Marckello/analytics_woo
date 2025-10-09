@@ -25,8 +25,12 @@ const {
   getBulkShippingCosts,
   getShippingStats,
   getAllShipments,
-  testConnection
+  testConnection,
+  getHistoricalOrdersFromDB
 } = require('./database.js');
+
+// Importar procesador de Excel para datos históricos
+const { processExcelData } = require('./excel-processor.js');
 
 // Importar módulo de Google Analytics 4
 const {
@@ -99,6 +103,87 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
 // Mapeo offline de costos reales desde el Excel de Envia.com (septiembre 2025)
 let enviaOrderMapping = null;
+
+// Función para detectar si un período es histórico (Excel)
+const isHistoricalPeriod = (period) => {
+  const historicalPeriods = ['enero-2025', 'febrero-2025', 'marzo-2025', 'abril-2025', 'mayo-2025', 'junio-2025', 'julio-2025'];
+  return historicalPeriods.includes(period);
+};
+
+// Función auxiliar para convertir número de mes a nombre en español
+const getMonthName = (monthNumber) => {
+  const months = {
+    1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril',
+    5: 'mayo', 6: 'junio', 7: 'julio', 8: 'agosto',
+    9: 'septiembre', 10: 'octubre', 11: 'noviembre', 12: 'diciembre'
+  };
+  return months[monthNumber] || 'enero';
+};
+
+// Caché para datos históricos (evitar recargar Excel múltiples veces)
+let historicalDataCache = new Map();
+
+// Función para obtener datos históricos desde PostgreSQL (optimizada)
+const getHistoricalData = async (period) => {
+  try {
+    console.log(`📚 Obteniendo datos históricos para: ${period}`);
+    
+    // Verificar caché primero
+    if (historicalDataCache.has(period)) {
+      console.log(`📋 Usando datos en caché para: ${period}`);
+      return historicalDataCache.get(period);
+    }
+    
+    // Extraer el mes del período (ejemplo: "enero-2025" -> "enero")
+    const [month, year] = period.split('-');
+    
+    console.log(`🗄️ Consultando PostgreSQL para: ${month} ${year}`);
+    
+    // Mapeo de meses en español a números
+    const monthMap = {
+      'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4,
+      'mayo': 5, 'junio': 6, 'julio': 7, 'agosto': 8,
+      'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+    };
+    
+    const targetMonth = monthMap[month.toLowerCase()];
+    
+    if (!targetMonth) {
+      throw new Error(`Mes no válido: ${month}`);
+    }
+    
+    // Obtener datos históricos desde PostgreSQL
+    const historicalResult = await getHistoricalOrdersFromDB(targetMonth, parseInt(year));
+    
+    if (historicalResult.error) {
+      console.error('❌ Error consultando PostgreSQL:', historicalResult.error);
+      const errorResult = { success: false, orders: [], error: historicalResult.error };
+      return errorResult;
+    }
+    
+    console.log(`✅ Datos históricos obtenidos: ${historicalResult.orders.length} órdenes`);
+    
+    const result = {
+      success: true,
+      orders: historicalResult.orders,
+      totalRecords: historicalResult.totalRecords,
+      source: 'historical_postgresql',
+      period: period,
+      month: month,
+      year: year
+    };
+    
+    // Cachear resultado exitoso
+    historicalDataCache.set(period, result);
+    
+    return result;
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo datos históricos:', error.message);
+    console.error('Stack trace:', error.stack);
+    return { success: false, orders: [], error: error.message };
+  }
+};
 
 // Función para cargar el mapeo de costos de Envia.com
 const loadEnviaOrderMapping = () => {
@@ -585,6 +670,44 @@ const handleDashboard = async (query) => {
         endDate = new Date('2025-08-31T23:59:59Z').toISOString();
         periodLabel = 'Agosto 2025';
         break;
+      
+      // PERÍODOS HISTÓRICOS (Excel)
+      case 'enero-2025':
+        startDate = new Date('2025-01-01T00:00:00Z').toISOString();
+        endDate = new Date('2025-01-31T23:59:59Z').toISOString();
+        periodLabel = 'Enero 2025 (Histórico)';
+        break;
+      case 'febrero-2025':
+        startDate = new Date('2025-02-01T00:00:00Z').toISOString();
+        endDate = new Date('2025-02-28T23:59:59Z').toISOString();
+        periodLabel = 'Febrero 2025 (Histórico)';
+        break;
+      case 'marzo-2025':
+        startDate = new Date('2025-03-01T00:00:00Z').toISOString();
+        endDate = new Date('2025-03-31T23:59:59Z').toISOString();
+        periodLabel = 'Marzo 2025 (Histórico)';
+        break;
+      case 'abril-2025':
+        startDate = new Date('2025-04-01T00:00:00Z').toISOString();
+        endDate = new Date('2025-04-30T23:59:59Z').toISOString();
+        periodLabel = 'Abril 2025 (Histórico)';
+        break;
+      case 'mayo-2025':
+        startDate = new Date('2025-05-01T00:00:00Z').toISOString();
+        endDate = new Date('2025-05-31T23:59:59Z').toISOString();
+        periodLabel = 'Mayo 2025 (Histórico)';
+        break;
+      case 'junio-2025':
+        startDate = new Date('2025-06-01T00:00:00Z').toISOString();
+        endDate = new Date('2025-06-30T23:59:59Z').toISOString();
+        periodLabel = 'Junio 2025 (Histórico)';
+        break;
+      case 'julio-2025':
+        startDate = new Date('2025-07-01T00:00:00Z').toISOString();
+        endDate = new Date('2025-07-31T23:59:59Z').toISOString();
+        periodLabel = 'Julio 2025 (Histórico)';
+        break;
+        
       case 'september-2025':
       default:
         startDate = new Date('2025-09-01T00:00:00Z').toISOString();
@@ -594,26 +717,44 @@ const handleDashboard = async (query) => {
       }
     }
     
-    // OBTENER TODAS LAS ÓRDENES - Con paginación para datos completos
+    // OBTENER TODAS LAS ÓRDENES - Detectar si es período histórico o actual
     let allOrders = [];
-    let page = 1;
-    let hasMoreOrders = true;
     
-    while (hasMoreOrders) {
-      const orders = await fetchWooCommerceData(
-        'orders', 
-        `after=${startDate}&before=${endDate}&per_page=100&page=${page}`
-      );
+    // Verificar si es un período histórico (Excel)
+    if (isHistoricalPeriod(periodParam)) {
+      console.log(`📚 Período histórico detectado: ${periodParam}`);
+      const historicalResult = getHistoricalData(periodParam);
+      
+      if (historicalResult.success) {
+        allOrders = historicalResult.orders;
+        console.log(`✅ Datos históricos cargados: ${allOrders.length} órdenes`);
+      } else {
+        console.error('❌ Error cargando datos históricos:', historicalResult.error);
+        // Continuar con array vacío para evitar crashes
+        allOrders = [];
+      }
+    } else {
+      // OBTENER ÓRDENES DE WOOCOMMERCE (período actual)
+      console.log(`🌐 Obteniendo órdenes de WooCommerce para período actual: ${periodParam}`);
+      let page = 1;
+      let hasMoreOrders = true;
+      
+      while (hasMoreOrders) {
+        const orders = await fetchWooCommerceData(
+          'orders', 
+          `after=${startDate}&before=${endDate}&per_page=100&page=${page}`
+        );
       
       if (orders && orders.length > 0) {
         allOrders = allOrders.concat(orders);
-        page++;
-        // Si obtenemos menos de 100 órdenes, ya no hay más páginas
-        if (orders.length < 100) {
+          page++;
+          // Si obtenemos menos de 100 órdenes, ya no hay más páginas
+          if (orders.length < 100) {
+            hasMoreOrders = false;
+          }
+        } else {
           hasMoreOrders = false;
         }
-      } else {
-        hasMoreOrders = false;
       }
     }
     
@@ -1771,6 +1912,17 @@ const getHTML = () => {
                                     <option value="august-2025" style="color: #1f2937; background: white;">🌟 Agosto 2025</option>
                                     <option value="september-2025" style="color: #1f2937; background: white;">🍂 Septiembre 2025</option>
                                     <option value="october-2025" style="color: #1f2937; background: white;">🎃 Octubre 2025</option>
+                                </optgroup>
+                                
+                                <!-- Datos Históricos -->
+                                <optgroup label="📚 Histórico (Plataforma Anterior)" style="color: #1f2937; font-weight: bold;">
+                                    <option value="enero-2025" style="color: #1f2937; background: white;">📊 Enero 2025</option>
+                                    <option value="febrero-2025" style="color: #1f2937; background: white;">📊 Febrero 2025</option>
+                                    <option value="marzo-2025" style="color: #1f2937; background: white;">📊 Marzo 2025</option>
+                                    <option value="abril-2025" style="color: #1f2937; background: white;">📊 Abril 2025</option>
+                                    <option value="mayo-2025" style="color: #1f2937; background: white;">📊 Mayo 2025</option>
+                                    <option value="junio-2025" style="color: #1f2937; background: white;">📊 Junio 2025</option>
+                                    <option value="julio-2025" style="color: #1f2937; background: white;">📊 Julio 2025</option>
                                 </optgroup>
                                 
                                 <!-- Rango Personalizado -->
@@ -4322,6 +4474,27 @@ const getHTML = () => {
             case 'october-2025':
               periodLabel = 'Octubre 2025';
               break;
+            case 'enero-2025':
+              periodLabel = 'Enero 2025 (Histórico)';
+              break;
+            case 'febrero-2025':
+              periodLabel = 'Febrero 2025 (Histórico)';
+              break;
+            case 'marzo-2025':
+              periodLabel = 'Marzo 2025 (Histórico)';
+              break;
+            case 'abril-2025':
+              periodLabel = 'Abril 2025 (Histórico)';
+              break;
+            case 'mayo-2025':
+              periodLabel = 'Mayo 2025 (Histórico)';
+              break;
+            case 'junio-2025':
+              periodLabel = 'Junio 2025 (Histórico)';
+              break;
+            case 'julio-2025':
+              periodLabel = 'Julio 2025 (Histórico)';
+              break;
             case 'custom':
               if (customDateRange) {
                 const startDate = new Date(customDateRange.start).toLocaleDateString('es-MX');
@@ -5440,6 +5613,76 @@ const server = http.createServer(async (req, res) => {
           console.error('Error obteniendo orden:', error);
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: false, error: error.message }));
+        }
+      });
+      return;
+      
+    } else if (pathname === '/api/test-historical' && req.method === 'GET') {
+      // 🧪 ENDPOINT DE TESTING - Verificar conexión PostgreSQL y datos históricos
+      authMiddleware(req, res, async () => {
+        try {
+          const month = query.month || '1'; // Enero por defecto
+          const year = query.year || '2025';
+          
+          console.log(`🧪 TESTING: Probando conexión PostgreSQL para ${month}/${year}`);
+          
+          // Test 1: Conexión básica PostgreSQL
+          const connectionTest = await testConnection();
+          console.log('📡 Test conexión PostgreSQL:', connectionTest ? '✅ OK' : '❌ FAIL');
+          
+          // Test 2: Consulta datos históricos
+          const historicalResult = await getHistoricalOrdersFromDB(parseInt(month), parseInt(year));
+          console.log('📊 Test datos históricos:', historicalResult.success ? '✅ OK' : '❌ FAIL');
+          
+          // Test 3: Verificar función de período histórico
+          const testPeriod = `${getMonthName(parseInt(month))}-${year}`;
+          const isHistorical = isHistoricalPeriod(testPeriod);
+          console.log('🔍 Test detección período histórico:', isHistorical ? '✅ OK' : '❌ FAIL');
+          
+          // Preparar respuesta detallada
+          const response = {
+            success: true,
+            timestamp: new Date().toISOString(),
+            tests: {
+              postgresql_connection: {
+                status: connectionTest ? 'OK' : 'FAILED',
+                message: connectionTest ? 'Conexión PostgreSQL exitosa' : 'Conexión PostgreSQL falló'
+              },
+              historical_data_query: {
+                status: historicalResult.success ? 'OK' : 'FAILED',
+                message: historicalResult.success 
+                  ? `Datos obtenidos: ${historicalResult.orders.length} órdenes, ${historicalResult.totalRecords} registros`
+                  : `Error: ${historicalResult.error}`,
+                records_found: historicalResult.totalRecords || 0,
+                orders_processed: historicalResult.orders ? historicalResult.orders.length : 0
+              },
+              period_detection: {
+                status: isHistorical ? 'OK' : 'FAILED',
+                tested_period: testPeriod,
+                is_historical: isHistorical
+              }
+            },
+            sample_data: historicalResult.orders ? historicalResult.orders.slice(0, 2) : [],
+            database_config: {
+              host: process.env.DB_HOST || 'dashboard_adapto_woo_docs_adapto',
+              port: process.env.DB_PORT || 5432,
+              database: process.env.DB_NAME || 'dashboard_adapto_woo',
+              user: process.env.DB_USER || 'postgres'
+              // No incluir password por seguridad
+            }
+          };
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(response, null, 2));
+          
+        } catch (error) {
+          console.error('❌ Error en test endpoint:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: error.message,
+            timestamp: new Date().toISOString()
+          }, null, 2));
         }
       });
       return;

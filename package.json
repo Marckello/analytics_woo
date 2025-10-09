@@ -24,7 +24,8 @@
     "jsonwebtoken": "^9.0.2",
     "open": "^10.2.0",
     "pg": "^8.16.3",
-    "playwright": "^1.56.0"
+    "playwright": "^1.56.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250924.0",
