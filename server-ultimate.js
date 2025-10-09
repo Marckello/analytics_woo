@@ -3581,30 +3581,77 @@ const getHTML = () => {
           return new Intl.NumberFormat('es-MX').format(num);
         };
 
-        // Función para convertir período a días para APIs (Google Ads/Analytics)
-        const getPeriodDays = (period, customDateRange = null) => {
+        // Función para detectar si es un período histórico
+        const isHistoricalPeriod = (period) => {
+          const historicalPeriods = [
+            'enero-2025', 'febrero-2025', 'marzo-2025', 'abril-2025', 
+            'mayo-2025', 'junio-2025', 'julio-2025'
+          ];
+          return historicalPeriods.includes(period);
+        };
+
+        // Función para obtener rango de fechas específicas para APIs (Google Ads/Analytics)
+        const getPeriodDateRange = (period, customDateRange = null) => {
           if (customDateRange) {
-            const startDate = new Date(customDateRange.start);
-            const endDate = new Date(customDateRange.end);
-            const diffTime = Math.abs(endDate - startDate);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return Math.min(diffDays, 30); // Límite máximo 30 días para APIs
+            return {
+              start_date: customDateRange.start,
+              end_date: customDateRange.end,
+              days: Math.ceil((new Date(customDateRange.end) - new Date(customDateRange.start)) / (1000 * 60 * 60 * 24))
+            };
           }
+          
+          const today = new Date();
+          const formatDate = (date) => date.toISOString().split('T')[0]; // YYYY-MM-DD
           
           switch(period) {
             case 'today':
-              return 1;
+              return { start_date: formatDate(today), end_date: formatDate(today), days: 1 };
             case 'yesterday':
-              return 1;
+              const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+              return { start_date: formatDate(yesterday), end_date: formatDate(yesterday), days: 1 };
             case 'last-7-days':
-              return 7;
+              const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+              return { start_date: formatDate(sevenDaysAgo), end_date: formatDate(today), days: 7 };
             case 'last-14-days':
-              return 14;
+              const fourteenDaysAgo = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000);
+              return { start_date: formatDate(fourteenDaysAgo), end_date: formatDate(today), days: 14 };
             case 'last-30-days':
-              return 30;
+              const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+              return { start_date: formatDate(thirtyDaysAgo), end_date: formatDate(today), days: 30 };
+            
+            // PERÍODOS HISTÓRICOS - Fechas exactas para APIs de Google
+            case 'enero-2025':
+              return { start_date: '2025-01-01', end_date: '2025-01-31', days: 31, historical: true };
+            case 'febrero-2025':
+              return { start_date: '2025-02-01', end_date: '2025-02-28', days: 28, historical: true };
+            case 'marzo-2025':
+              return { start_date: '2025-03-01', end_date: '2025-03-31', days: 31, historical: true };
+            case 'abril-2025':
+              return { start_date: '2025-04-01', end_date: '2025-04-30', days: 30, historical: true };
+            case 'mayo-2025':
+              return { start_date: '2025-05-01', end_date: '2025-05-31', days: 31, historical: true };
+            case 'junio-2025':
+              return { start_date: '2025-06-01', end_date: '2025-06-30', days: 30, historical: true };
+            case 'julio-2025':
+              return { start_date: '2025-07-01', end_date: '2025-07-31', days: 31, historical: true };
+            case 'august-2025':
+              return { start_date: '2025-08-01', end_date: '2025-08-31', days: 31 };
+            case 'september-2025':
+              return { start_date: '2025-09-01', end_date: '2025-09-30', days: 30 };
+            case 'october-2025':
+              return { start_date: '2025-10-01', end_date: '2025-10-31', days: 31 };
+              
             default:
-              return 7; // Por defecto 7 días
+              // Por defecto últimos 7 días
+              const defaultStart = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+              return { start_date: formatDate(defaultStart), end_date: formatDate(today), days: 7 };
           }
+        };
+
+        // Función para convertir período a días para APIs (LEGACY - mantener compatibilidad)
+        const getPeriodDays = (period, customDateRange = null) => {
+          const dateRange = getPeriodDateRange(period, customDateRange);
+          return dateRange.days;
         };
 
         // Función para obtener etiqueta del período
@@ -4034,6 +4081,16 @@ const getHTML = () => {
           try {
             console.log('🔍 Cargando datos de Google Analytics 4...');
             
+            // NUEVO: Verificar si es período histórico y ocultar sección completa
+            if (isHistoricalPeriod(activePeriod)) {
+              console.log('📊 Google Analytics: Período histórico detectado - OCULTANDO sección completa');
+              const analyticsSection = document.querySelector('.glass-effect:has(#analytics-loading)');
+              if (analyticsSection) {
+                analyticsSection.style.display = 'none';
+              }
+              return;
+            }
+            
             // Verificar que los elementos existan
             const loadingElement = document.getElementById('analytics-loading');
             const contentElement = document.getElementById('analytics-content');
@@ -4047,15 +4104,28 @@ const getHTML = () => {
               return;
             }
             
-            // Mostrar loading state
+            // Mostrar sección y loading state
+            const analyticsSection = document.querySelector('.glass-effect:has(#analytics-loading)');
+            if (analyticsSection) {
+              analyticsSection.style.display = 'block';
+            }
             loadingElement.classList.remove('hidden');
             contentElement.classList.add('hidden');
             errorElement.classList.add('hidden');
             
-            // Hacer request a GA4 API con período dinámico
-            const days = getPeriodDays(activePeriod, customDateRange);
-            console.log('📊 Google Analytics: Usando ' + days + ' días para período ' + activePeriod);
-            const response = await axios.get('/api/analytics?days=' + days);
+            // Hacer request a GA4 API - usar fechas específicas para períodos históricos
+            const dateRange = getPeriodDateRange(activePeriod, customDateRange);
+            let response;
+            
+            if (dateRange.historical) {
+              console.log('📊 Google Analytics: Período histórico detectado', dateRange.start_date, 'a', dateRange.end_date);
+              // Para períodos históricos, usar API con fechas específicas
+              response = await axios.get('/api/analytics?start_date=' + dateRange.start_date + '&end_date=' + dateRange.end_date);
+            } else {
+              console.log('📊 Google Analytics: Usando', dateRange.days, 'días para período actual ' + activePeriod);
+              // Para períodos actuales, usar API con días
+              response = await axios.get('/api/analytics?days=' + dateRange.days);
+            }
             const result = response.data;
             
             if (!result.success) {
@@ -4156,6 +4226,16 @@ const getHTML = () => {
           try {
             console.log('🔍 Cargando datos de Google Ads...');
             
+            // NUEVO: Verificar si es período histórico y ocultar sección completa
+            if (isHistoricalPeriod(activePeriod)) {
+              console.log('📊 Google Ads: Período histórico detectado - OCULTANDO sección completa');
+              const googleAdsSection = document.querySelector('.glass-effect:has(#google-ads-loading)');
+              if (googleAdsSection) {
+                googleAdsSection.style.display = 'none';
+              }
+              return;
+            }
+            
             // Verificar que los elementos existan
             const loadingElement = document.getElementById('google-ads-loading');
             const contentElement = document.getElementById('google-ads-content');
@@ -4166,15 +4246,28 @@ const getHTML = () => {
               return;
             }
             
-            // Mostrar loading state
+            // Mostrar sección y loading state
+            const googleAdsSection = document.querySelector('.glass-effect:has(#google-ads-loading)');
+            if (googleAdsSection) {
+              googleAdsSection.style.display = 'block';
+            }
             loadingElement.classList.remove('hidden');
             contentElement.classList.add('hidden');
             errorElement.classList.add('hidden');
             
-            // Hacer request a Google Ads API con período dinámico
-            const days = getPeriodDays(activePeriod, customDateRange);
-            console.log('📊 Google Ads: Usando ' + days + ' días para período ' + activePeriod);
-            const response = await axios.get('/api/google-ads?days=' + days);
+            // Hacer request a Google Ads API - usar fechas específicas para períodos históricos
+            const dateRange = getPeriodDateRange(activePeriod, customDateRange);
+            let response;
+            
+            if (dateRange.historical) {
+              console.log('📊 Google Ads: Período histórico detectado', dateRange.start_date, 'a', dateRange.end_date);
+              // Para períodos históricos, usar API con fechas específicas
+              response = await axios.get('/api/google-ads?start_date=' + dateRange.start_date + '&end_date=' + dateRange.end_date);
+            } else {
+              console.log('📊 Google Ads: Usando', dateRange.days, 'días para período actual ' + activePeriod);
+              // Para períodos actuales, usar API con días
+              response = await axios.get('/api/google-ads?days=' + dateRange.days);
+            }
             const result = response.data;
             
             if (!result.success) {
@@ -4280,6 +4373,16 @@ const getHTML = () => {
           try {
             console.log('🔍 Cargando datos de Meta Ads...');
             
+            // NUEVO: Verificar si es período histórico y ocultar sección completa
+            if (isHistoricalPeriod(activePeriod)) {
+              console.log('📊 Meta Ads: Período histórico detectado - OCULTANDO sección completa');
+              const metaAdsSection = document.querySelector('.glass-effect:has(#meta-ads-loading)');
+              if (metaAdsSection) {
+                metaAdsSection.style.display = 'none';
+              }
+              return;
+            }
+            
             // Verificar que los elementos existan
             const loadingElement = document.getElementById('meta-ads-loading');
             const contentElement = document.getElementById('meta-ads-content');
@@ -4290,15 +4393,28 @@ const getHTML = () => {
               return;
             }
             
-            // Mostrar loading state
+            // Mostrar sección y loading state
+            const metaAdsSection = document.querySelector('.glass-effect:has(#meta-ads-loading)');
+            if (metaAdsSection) {
+              metaAdsSection.style.display = 'block';
+            }
             loadingElement.classList.remove('hidden');
             contentElement.classList.add('hidden');
             errorElement.classList.add('hidden');
             
-            // Hacer request a Meta Ads API con período dinámico
-            const days = getPeriodDays(activePeriod, customDateRange);
-            console.log('📊 Meta Ads: Usando ' + days + ' días para período ' + activePeriod);
-            const response = await axios.get('/api/meta-ads?days=' + days);
+            // Hacer request a Meta Ads API - usar fechas específicas para períodos históricos
+            const dateRange = getPeriodDateRange(activePeriod, customDateRange);
+            let response;
+            
+            if (dateRange.historical) {
+              console.log('📊 Meta Ads: Período histórico detectado', dateRange.start_date, 'a', dateRange.end_date);
+              // Para períodos históricos, usar API con fechas específicas
+              response = await axios.get('/api/meta-ads?start_date=' + dateRange.start_date + '&end_date=' + dateRange.end_date);
+            } else {
+              console.log('📊 Meta Ads: Usando', dateRange.days, 'días para período actual ' + activePeriod);
+              // Para períodos actuales, usar API con días
+              response = await axios.get('/api/meta-ads?days=' + dateRange.days);
+            }
             const result = response.data;
             
             if (!result.success) {
@@ -4404,6 +4520,16 @@ const getHTML = () => {
           try {
             console.log('🔍 Cargando contenido orgánico de Meta...');
             
+            // NUEVO: Verificar si es período histórico y ocultar sección completa
+            if (isHistoricalPeriod(activePeriod)) {
+              console.log('📊 Meta Organic: Período histórico detectado - OCULTANDO sección completa');
+              const metaOrganicSection = document.querySelector('.glass-effect:has(#meta-organic-loading)');
+              if (metaOrganicSection) {
+                metaOrganicSection.style.display = 'none';
+              }
+              return;
+            }
+            
             // Verificar que los elementos existan
             const loadingElement = document.getElementById('meta-organic-loading');
             const contentElement = document.getElementById('meta-organic-content');
@@ -4414,15 +4540,28 @@ const getHTML = () => {
               return;
             }
             
-            // Mostrar loading state
+            // Mostrar sección y loading state
+            const metaOrganicSection = document.querySelector('.glass-effect:has(#meta-organic-loading)');
+            if (metaOrganicSection) {
+              metaOrganicSection.style.display = 'block';
+            }
             loadingElement.classList.remove('hidden');
             contentElement.classList.add('hidden');
             errorElement.classList.add('hidden');
             
-            // Hacer request a Meta Organic API con período dinámico
-            const days = getPeriodDays(activePeriod, customDateRange);
-            console.log('📊 Meta Organic: Usando ' + days + ' días para período ' + activePeriod);
-            const response = await axios.get('/api/meta-organic?days=' + days);
+            // Hacer request a Meta Organic API - usar fechas específicas para períodos históricos
+            const dateRange = getPeriodDateRange(activePeriod, customDateRange);
+            let response;
+            
+            if (dateRange.historical) {
+              console.log('📊 Meta Organic: Período histórico detectado', dateRange.start_date, 'a', dateRange.end_date);
+              // Para períodos históricos, usar API con fechas específicas
+              response = await axios.get('/api/meta-organic?start_date=' + dateRange.start_date + '&end_date=' + dateRange.end_date);
+            } else {
+              console.log('📊 Meta Organic: Usando', dateRange.days, 'días para período actual ' + activePeriod);
+              // Para períodos actuales, usar API con días
+              response = await axios.get('/api/meta-organic?days=' + dateRange.days);
+            }
             const result = response.data;
             
             if (!result.success) {
@@ -6242,16 +6381,31 @@ const server = http.createServer(async (req, res) => {
       // API Google Analytics 4 (protegida)
       authMiddleware(req, res, async () => {
         try {
-          const dateRange = parseInt(query.days) || 7;
-          console.log(`🔍 Obteniendo datos GA4 para ${dateRange} días...`);
+          // Aceptar tanto days como start_date/end_date
+          let dateRange, startDate, endDate;
           
-          const ga4Data = await getGA4Insights(dateRange);
+          if (query.start_date && query.end_date) {
+            startDate = query.start_date;
+            endDate = query.end_date;
+            console.log(`🔍 Obteniendo datos GA4 desde ${startDate} hasta ${endDate}...`);
+            dateRange = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+          } else {
+            dateRange = parseInt(query.days) || 7;
+            console.log(`🔍 Obteniendo datos GA4 para ${dateRange} días...`);
+            startDate = null;
+            endDate = null;
+          }
+          
+          const ga4Data = await getGA4Insights(dateRange, startDate, endDate);
           
           res.writeHead(200, { 'Content-Type': 'application/json' });
+          const message = startDate && endDate ? 
+            `Datos GA4 obtenidos desde ${startDate} hasta ${endDate}` :
+            `Datos GA4 obtenidos para los últimos ${dateRange} días`;
           res.end(JSON.stringify({
             success: true,
             data: ga4Data,
-            message: `Datos GA4 obtenidos para los últimos ${dateRange} días`
+            message: message
           }));
         } catch (error) {
           console.error('❌ Error GA4 API:', error.message);
@@ -6274,16 +6428,31 @@ const server = http.createServer(async (req, res) => {
       // API Google Ads (protegida)
       authMiddleware(req, res, async () => {
         try {
-          const dateRange = parseInt(query.days) || 30;
-          console.log(`🔍 Obteniendo datos Google Ads para ${dateRange} días...`);
+          // Aceptar tanto days como start_date/end_date
+          let dateRange, startDate, endDate;
           
-          const googleAdsData = await getGoogleAdsInsights(dateRange);
+          if (query.start_date && query.end_date) {
+            startDate = query.start_date;
+            endDate = query.end_date;
+            console.log(`🔍 Obteniendo datos Google Ads desde ${startDate} hasta ${endDate}...`);
+            dateRange = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+          } else {
+            dateRange = parseInt(query.days) || 30;
+            console.log(`🔍 Obteniendo datos Google Ads para ${dateRange} días...`);
+            startDate = null;
+            endDate = null;
+          }
+          
+          const googleAdsData = await getGoogleAdsInsights(dateRange, startDate, endDate);
           
           res.writeHead(200, { 'Content-Type': 'application/json' });
+          const message = startDate && endDate ? 
+            `Datos Google Ads obtenidos desde ${startDate} hasta ${endDate}` :
+            `Datos Google Ads obtenidos para los últimos ${dateRange} días`;
           res.end(JSON.stringify({
             success: true,
             data: googleAdsData,
-            message: `Datos Google Ads obtenidos para los últimos ${dateRange} días`
+            message: message
           }));
         } catch (error) {
           console.error('❌ Error Google Ads API:', error.message);
@@ -6305,16 +6474,31 @@ const server = http.createServer(async (req, res) => {
       // API Meta Ads (protegida)
       authMiddleware(req, res, async () => {
         try {
-          const dateRange = parseInt(query.days) || 30;
-          console.log(`🔍 Obteniendo datos Meta Ads para ${dateRange} días...`);
+          // Aceptar tanto days como start_date/end_date
+          let dateRange, startDate, endDate;
           
-          const metaAdsData = await getMetaAdsInsights(dateRange);
+          if (query.start_date && query.end_date) {
+            startDate = query.start_date;
+            endDate = query.end_date;
+            console.log(`🔍 Obteniendo datos Meta Ads desde ${startDate} hasta ${endDate}...`);
+            dateRange = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+          } else {
+            dateRange = parseInt(query.days) || 30;
+            console.log(`🔍 Obteniendo datos Meta Ads para ${dateRange} días...`);
+            startDate = null;
+            endDate = null;
+          }
+          
+          const metaAdsData = await getMetaAdsInsights(dateRange, startDate, endDate);
           
           res.writeHead(200, { 'Content-Type': 'application/json' });
+          const message = startDate && endDate ? 
+            `Datos Meta Ads obtenidos desde ${startDate} hasta ${endDate}` :
+            `Datos Meta Ads obtenidos para los últimos ${dateRange} días`;
           res.end(JSON.stringify({
             success: true,
             data: metaAdsData,
-            message: `Datos Meta Ads obtenidos para los últimos ${dateRange} días`
+            message: message
           }));
         } catch (error) {
           console.error('❌ Error Meta Ads API:', error.message);
@@ -6356,16 +6540,31 @@ const server = http.createServer(async (req, res) => {
       // API Meta Organic - Facebook Pages + Instagram Business (protegida)
       authMiddleware(req, res, async () => {
         try {
-          const dateRange = parseInt(query.days) || 30;
-          console.log(`🔍 Obteniendo datos Meta Organic para ${dateRange} días...`);
+          // Aceptar tanto days como start_date/end_date
+          let dateRange, startDate, endDate;
           
-          const metaOrganicData = await getMetaOrganicInsights(dateRange);
+          if (query.start_date && query.end_date) {
+            startDate = query.start_date;
+            endDate = query.end_date;
+            console.log(`🔍 Obteniendo datos Meta Organic desde ${startDate} hasta ${endDate}...`);
+            dateRange = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+          } else {
+            dateRange = parseInt(query.days) || 30;
+            console.log(`🔍 Obteniendo datos Meta Organic para ${dateRange} días...`);
+            startDate = null;
+            endDate = null;
+          }
+          
+          const metaOrganicData = await getMetaOrganicInsights(dateRange, startDate, endDate);
           
           res.writeHead(200, { 'Content-Type': 'application/json' });
+          const message = startDate && endDate ? 
+            `Datos Meta Organic obtenidos desde ${startDate} hasta ${endDate}` :
+            `Datos Meta Organic obtenidos para los últimos ${dateRange} días`;
           res.end(JSON.stringify({
             success: true,
             data: metaOrganicData,
-            message: `Datos Meta Organic obtenidos para los últimos ${dateRange} días`
+            message: message
           }));
         } catch (error) {
           console.error('❌ Error Meta Organic API:', error.message);
