@@ -123,16 +123,25 @@ const getMonthName = (monthNumber) => {
 // Caché para datos históricos (evitar recargar Excel múltiples veces)
 let historicalDataCache = new Map();
 
+// LIMPIAR CACHÉ AL INICIO
+historicalDataCache.clear();
+console.log('🧹 Caché histórico limpiado al inicializar servidor');
+
 // Función para obtener datos históricos desde Excel (optimizada)
 const getHistoricalData = async (period) => {
   try {
-    console.log(`📚 Obteniendo datos históricos EXCEL para: ${period}`);
+    console.log(`📚 *** INICIANDO getHistoricalData para: ${period} ***`);
     
-    // Verificar caché primero
-    if (historicalDataCache.has(period)) {
+    // Verificar caché primero (TEMPORALMENTE DESACTIVADO PARA TESTING)
+    if (false && historicalDataCache.has(period)) {
       console.log(`📋 Usando datos en caché para: ${period}`);
       return historicalDataCache.get(period);
     }
+    
+    console.log(`🔄 CACHÉ DESACTIVADO - Procesando CSV desde cero para: ${period}`);
+    console.log('*'.repeat(50));
+    console.log('*** USANDO SISTEMA CSV (NO POSTGRESQL) ***');
+    console.log('*'.repeat(50));
     
     // Extraer el mes del período (ejemplo: "enero-2025" -> "enero")
     const [month, year] = period.split('-');
@@ -185,62 +194,101 @@ const getHistoricalData = async (period) => {
   }
 };
 
-// Función para procesar datos históricos desde Excel
+// Función para procesar datos históricos desde CSV (optimizada)
 const processHistoricalExcel = async (targetMonth, targetYear) => {
   try {
-    const XLSX = require('xlsx');
+    console.log(`📊 Procesando CSV histórico para mes: ${targetMonth}, año: ${targetYear}`);
     
-    console.log(`📊 Procesando Excel histórico para mes: ${targetMonth}, año: ${targetYear}`);
-    
-    // Leer el archivo Excel
-    const excelPath = path.join(__dirname, 'data_historica_nuevo.xls');
-    if (!fs.existsSync(excelPath)) {
-      throw new Error('Archivo Excel histórico no encontrado: data_historica_nuevo.xls');
+    // Verificar archivo CSV existe
+    const csvPath = path.join(__dirname, 'data_historica.csv');
+    if (!fs.existsSync(csvPath)) {
+      throw new Error('Archivo CSV histórico no encontrado: data_historica.csv');
     }
     
-    const workbook = XLSX.readFile(excelPath);
-    const sheetName = workbook.SheetNames[0]; // Primera hoja
-    const worksheet = workbook.Sheets[sheetName];
+    console.log(`📂 Leyendo CSV: ${csvPath}`);
     
-    // Convertir a JSON
-    const rawData = XLSX.utils.sheet_to_json(worksheet);
-    console.log(`📋 Total registros en Excel: ${rawData.length}`);
+    // Leer CSV por líneas (mucho más eficiente)
+    const csvData = fs.readFileSync(csvPath, 'utf8');
     
-    // Filtrar por mes, año y estado pagado
-    const filteredData = rawData.filter(row => {
+    // Parsear CSV (más rápido que Excel)
+    const lines = csvData.split('\n');
+    const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+    
+    console.log(`📊 CSV leído: ${lines.length} líneas, ${headers.length} columnas`);
+    console.log(`📋 Headers: ${headers.slice(0, 5).join(', ')}...`);
+    
+    let processedRows = 0;
+    let filteredData = [];
+    
+    // Procesar líneas (saltar header)
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
       try {
-        // Verificar que tenga los campos necesarios
-        if (!row['Created at'] || !row['Financial Status']) return false;
+        // Parsear línea CSV (manejo simple de comillas)
+        const values = parseCSVLine(line);
+        if (values.length !== headers.length) continue;
         
-        // Filtrar solo órdenes pagadas
-        if (row['Financial Status'] !== 'paid') return false;
+        // Crear objeto con headers
+        const row = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
         
-        // Parsear fecha (formato: "2025-07-30 20:21:44 -0600")
+        processedRows++;
+        
+        // Filtrar por mes, año y estado pagado
+        if (!row['Created at'] || !row['Financial Status']) continue;
+        if (row['Financial Status'] !== 'paid') continue;
+        
         const createdAt = row['Created at'];
         const date = new Date(createdAt);
-        
-        // Verificar mes y año
-        const orderMonth = date.getMonth() + 1; // getMonth() es 0-based
+        const orderMonth = date.getMonth() + 1;
         const orderYear = date.getFullYear();
         
-        return orderMonth === targetMonth && orderYear === targetYear;
+        if (orderMonth === targetMonth && orderYear === targetYear) {
+          filteredData.push(row);
+        }
         
-      } catch (error) {
-        console.warn('⚠️ Error procesando fila:', error.message);
-        return false;
+        // Log progreso cada 5000 filas
+        if (processedRows % 5000 === 0) {
+          console.log(`📊 Procesadas ${processedRows} filas, ${filteredData.length} filtradas`);
+        }
+        
+      } catch (rowError) {
+        // Continuar con siguiente fila si hay error
+        continue;
       }
-    });
+    }
     
-    console.log(`🔍 Registros filtrados (${targetMonth}/${targetYear}, pagados): ${filteredData.length}`);
+    console.log(`🎯 Procesamiento CSV completo: ${processedRows} filas, ${filteredData.length} registros filtrados`);
     
     if (filteredData.length === 0) {
       return { success: true, orders: [], totalRecords: 0 };
     }
     
-    // Convertir datos Excel a formato WooCommerce
+    // Convertir datos filtrados a formato WooCommerce
+    console.log(`🔄 Convirtiendo ${filteredData.length} registros CSV a formato WooCommerce...`);
+    
+    // DEBUG: Mostrar algunos emails del CSV antes de convertir
+    console.log('🔍 DEBUG: Emails encontrados en CSV:');
+    filteredData.slice(0, 5).forEach(row => {
+      console.log(`   - ${row['Email']} (${row['Name']})`);
+    });
+    
     const wooCommerceOrders = convertExcelToWooCommerce(filteredData);
     
-    console.log(`✅ Órdenes convertidas a formato WooCommerce: ${wooCommerceOrders.length}`);
+    console.log(`✅ Conversión CSV completa: ${wooCommerceOrders.length} órdenes WooCommerce`);
+    
+    // DEBUG: Mostrar algunos emails después de la conversión
+    console.log('🔍 DEBUG: Emails después de conversión WooCommerce:');
+    wooCommerceOrders.slice(0, 5).forEach(order => {
+      console.log(`   - ${order.billing.email} ($${order.total})`);
+    });
+    
+    // Liberar memoria
+    filteredData.length = 0;
     
     return {
       success: true,
@@ -280,6 +328,7 @@ const convertExcelToWooCommerce = (excelData) => {
           date_paid: formatExcelDateToISO(row['Paid at']),
           total: parseFloat(row['Total'] || '0').toString(),
           total_tax: parseFloat(row['Taxes'] || '0').toString(),
+          shipping_total: parseFloat(row['Shipping'] || '0').toString(), // Agregar shipping_total desde CSV
           currency: row['Currency'] || 'MXN',
           payment_method: mapPaymentMethod(row['Payment Method']),
           payment_method_title: row['Payment Method'] || 'Desconocido',
@@ -328,6 +377,7 @@ const convertExcelToWooCommerce = (excelData) => {
       if (row['Lineitem name']) {
         order.line_items.push({
           id: Math.floor(Math.random() * 1000000), // ID temporal único
+          product_id: row['Lineitem sku'] || row['Lineitem name'] || 'unknown', // Usar SKU o nombre como product_id
           name: row['Lineitem name'],
           quantity: parseInt(row['Lineitem quantity'] || '1'),
           price: parseFloat(row['Lineitem price'] || '0').toString(),
@@ -379,6 +429,43 @@ const extractLastName = (fullName) => {
   if (!fullName) return '';
   const parts = fullName.split(' ');
   return parts.slice(1).join(' ') || '';
+};
+
+// Función auxiliar para parsear líneas CSV (manejo básico de comillas)
+const parseCSVLine = (line) => {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  let i = 0;
+  
+  while (i < line.length) {
+    const char = line[i];
+    
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        // Comilla escapada ""
+        current += '"';
+        i += 2;
+      } else {
+        // Toggle estado de comillas
+        inQuotes = !inQuotes;
+        i++;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // Separador encontrado fuera de comillas
+      result.push(current.trim());
+      current = '';
+      i++;
+    } else {
+      current += char;
+      i++;
+    }
+  }
+  
+  // Agregar último campo
+  result.push(current.trim());
+  
+  return result;
 };
 
 // Función para cargar el mapeo de costos de Envia.com
@@ -770,8 +857,12 @@ const calculatePercentageChange = (current, previous) => {
 
 const handleDashboard = async (query) => {
   try {
+    console.log('🏠 *** HANDLEADSHBOARD EJECUTÁNDOSE ***');
+    console.log('🏠 Query completo recibido:', JSON.stringify(query, null, 2));
+    
     // NUEVO: Obtener período de los parámetros de query o fechas personalizadas
     const periodParam = query.period || 'september-2025';
+    console.log('🏠 PeriodParam extraído:', periodParam);
     const comparisonPeriodParam = query.comparison_period || 'auto';
     const customStartDate = query.start_date;
     const customEndDate = query.end_date;
@@ -917,9 +1008,11 @@ const handleDashboard = async (query) => {
     let allOrders = [];
     
     // Verificar si es un período histórico (Excel)
+    console.log(`🔍 Verificando período: ${periodParam} - ¿Es histórico? ${isHistoricalPeriod(periodParam)}`);
+    
     if (isHistoricalPeriod(periodParam)) {
       console.log(`📚 Período histórico detectado: ${periodParam}`);
-      const historicalResult = getHistoricalData(periodParam);
+      const historicalResult = await getHistoricalData(periodParam);
       
       if (historicalResult.success) {
         allOrders = historicalResult.orders;
@@ -1031,7 +1124,7 @@ const handleDashboard = async (query) => {
     orders.forEach(order => {
       if (order.line_items && Array.isArray(order.line_items)) {
         order.line_items.forEach(item => {
-          const productId = item.product_id;
+          const productId = item.product_id || item.sku || item.name || 'unknown';
           const productName = item.name;
           const quantity = parseInt(item.quantity);
           const totalSales = parseFloat(item.total);
@@ -1154,6 +1247,11 @@ const handleDashboard = async (query) => {
     Object.values(customerAnalysis).forEach((customer) => {
       const emailLower = customer.email?.toLowerCase() || '';
       const isDistributor = distributorEmails.has(emailLower);
+      
+      // DEBUG: Log emails para debugging
+      if (isDistributor) {
+        console.log(`🔍 DISTRIBUIDOR ENCONTRADO: ${emailLower} ($${customer.totalSpent})`);
+      }
       
       if (isDistributor) {
         distributors.push(customer);
@@ -1414,14 +1512,30 @@ const handleDashboard = async (query) => {
       // Porque en Adaptoheal muchas son envío "gratuito" pero tienen costo real
       if (wooShippingCost >= 0 || (order.shipping_lines && order.shipping_lines.length > 0)) {
         try {
-          const enviaResult = await getShippingCostByOrderReference(orderReference);
-          
           shippingStats.ordersWithShipping++;
           shippingStats.totalWooCommerceCost += wooShippingCost;
           
+          let enviaResult;
+          
+          // NUEVO: Para períodos históricos, usar datos del CSV directamente
+          if (isHistoricalPeriod(periodParam)) {
+            // Para data histórica, el costo real = costo WooCommerce (ya incluido en el CSV)
+            const realCost = wooShippingCost;
+            enviaResult = {
+              found: realCost > 0,
+              cost: realCost,
+              carrier: order.shipping_lines?.[0]?.method_title || 'Carrier Histórico',
+              service: 'Servicio Histórico',
+              source: 'historical_csv'
+            };
+          } else {
+            // Para períodos actuales, usar PostgreSQL como antes
+            enviaResult = await getShippingCostByOrderReference(orderReference);
+          }
+          
           // Contar fuentes de datos
           if (enviaResult.source) {
-            shippingStats.sources[enviaResult.source]++;
+            shippingStats.sources[enviaResult.source] = (shippingStats.sources[enviaResult.source] || 0) + 1;
           }
           
           if (enviaResult.found) {
@@ -5908,26 +6022,22 @@ const server = http.createServer(async (req, res) => {
       return;
       
     } else if (pathname === '/api/test-db' && req.method === 'GET') {
-      // 🔓 ENDPOINT PÚBLICO - Testing PostgreSQL sin autenticación
+      // 🔓 ENDPOINT PÚBLICO - Testing Excel histórico sin autenticación
       try {
         const month = query.month || '1'; // Enero por defecto
         const year = query.year || '2025';
         
-        console.log(`🔓 PUBLIC TESTING: PostgreSQL para ${month}/${year}`);
+        console.log(`🔓 PUBLIC TESTING: Excel histórico para ${month}/${year}`);
         
-        // Test 1: Conexión PostgreSQL
-        const connectionTest = await testConnection();
-        console.log('📡 Conexión PostgreSQL:', connectionTest ? '✅ OK' : '❌ FAIL');
-        
-        // Test 2: Consulta datos históricos
-        const historicalResult = await getHistoricalOrdersFromDB(parseInt(month), parseInt(year));
-        console.log('📊 Datos históricos:', historicalResult.success ? '✅ OK' : '❌ FAIL');
+        // Test: Procesar datos históricos desde Excel
+        const historicalResult = await processHistoricalExcel(parseInt(month), parseInt(year));
+        console.log('📊 Datos Excel históricos:', historicalResult.success ? '✅ OK' : '❌ FAIL');
         
         // Respuesta simplificada
         const response = {
           success: true,
           timestamp: new Date().toISOString(),
-          postgresql_connection: connectionTest ? 'CONECTADO' : 'ERROR',
+          excel_processing: historicalResult.success ? 'OK' : 'ERROR',
           historical_data: {
             status: historicalResult.success ? 'OK' : 'ERROR',
             records_found: historicalResult.totalRecords || 0,
@@ -5935,7 +6045,7 @@ const server = http.createServer(async (req, res) => {
             error: historicalResult.error || null
           },
           tested_period: `${month}/${year}`,
-          database_host: process.env.DB_HOST || 'dashboard_adapto_woo_docs_adapto',
+          excel_file: 'data_historica_nuevo.xls',
           sample_orders: historicalResult.orders ? historicalResult.orders.slice(0, 2).map(order => ({
             id: order.id,
             number: order.number,
@@ -6086,8 +6196,26 @@ const server = http.createServer(async (req, res) => {
     } else if (pathname === '/api/dashboard-public') {
       // TEMPORAL: Dashboard público para pruebas (sin autenticación)
       try {
-        console.log('🧪 Public dashboard test - getting shipping costs data...');
+        console.log('🧪 *** ENDPOINT PÚBLICO LLAMADO ***');
+        console.log('🧪 Query recibido:', query);
+        console.log('🧪 Llamando handleDashboard...');
+        
+        // DEBUGGING: Respuesta de prueba para verificar si se ejecuta
+        if (query.debug === 'true') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            debug: true,
+            message: 'ENDPOINT SE EJECUTA CORRECTAMENTE',
+            query: query,
+            timestamp: new Date().toISOString()
+          }));
+          return;
+        }
+        
+        console.log('🧪 ANTES de llamar handleDashboard - query:', query);
         const result = await handleDashboard(query);
+        console.log('🧪 DESPUÉS de handleDashboard - result obtenido:', typeof result);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch (error) {
