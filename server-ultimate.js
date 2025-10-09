@@ -123,10 +123,10 @@ const getMonthName = (monthNumber) => {
 // Caché para datos históricos (evitar recargar Excel múltiples veces)
 let historicalDataCache = new Map();
 
-// Función para obtener datos históricos desde PostgreSQL (optimizada)
+// Función para obtener datos históricos desde Excel (optimizada)
 const getHistoricalData = async (period) => {
   try {
-    console.log(`📚 Obteniendo datos históricos para: ${period}`);
+    console.log(`📚 Obteniendo datos históricos EXCEL para: ${period}`);
     
     // Verificar caché primero
     if (historicalDataCache.has(period)) {
@@ -137,7 +137,7 @@ const getHistoricalData = async (period) => {
     // Extraer el mes del período (ejemplo: "enero-2025" -> "enero")
     const [month, year] = period.split('-');
     
-    console.log(`🗄️ Consultando PostgreSQL para: ${month} ${year}`);
+    console.log(`📊 Procesando Excel para: ${month} ${year}`);
     
     // Mapeo de meses en español a números
     const monthMap = {
@@ -152,22 +152,22 @@ const getHistoricalData = async (period) => {
       throw new Error(`Mes no válido: ${month}`);
     }
     
-    // Obtener datos históricos desde PostgreSQL
-    const historicalResult = await getHistoricalOrdersFromDB(targetMonth, parseInt(year));
+    // Obtener datos históricos desde Excel
+    const historicalResult = await processHistoricalExcel(targetMonth, parseInt(year));
     
     if (historicalResult.error) {
-      console.error('❌ Error consultando PostgreSQL:', historicalResult.error);
+      console.error('❌ Error procesando Excel:', historicalResult.error);
       const errorResult = { success: false, orders: [], error: historicalResult.error };
       return errorResult;
     }
     
-    console.log(`✅ Datos históricos obtenidos: ${historicalResult.orders.length} órdenes`);
+    console.log(`✅ Datos históricos Excel obtenidos: ${historicalResult.orders.length} órdenes`);
     
     const result = {
       success: true,
       orders: historicalResult.orders,
       totalRecords: historicalResult.totalRecords,
-      source: 'historical_postgresql',
+      source: 'historical_excel',
       period: period,
       month: month,
       year: year
@@ -183,6 +183,202 @@ const getHistoricalData = async (period) => {
     console.error('Stack trace:', error.stack);
     return { success: false, orders: [], error: error.message };
   }
+};
+
+// Función para procesar datos históricos desde Excel
+const processHistoricalExcel = async (targetMonth, targetYear) => {
+  try {
+    const XLSX = require('xlsx');
+    
+    console.log(`📊 Procesando Excel histórico para mes: ${targetMonth}, año: ${targetYear}`);
+    
+    // Leer el archivo Excel
+    const excelPath = path.join(__dirname, 'data_historica_nuevo.xls');
+    if (!fs.existsSync(excelPath)) {
+      throw new Error('Archivo Excel histórico no encontrado: data_historica_nuevo.xls');
+    }
+    
+    const workbook = XLSX.readFile(excelPath);
+    const sheetName = workbook.SheetNames[0]; // Primera hoja
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Convertir a JSON
+    const rawData = XLSX.utils.sheet_to_json(worksheet);
+    console.log(`📋 Total registros en Excel: ${rawData.length}`);
+    
+    // Filtrar por mes, año y estado pagado
+    const filteredData = rawData.filter(row => {
+      try {
+        // Verificar que tenga los campos necesarios
+        if (!row['Created at'] || !row['Financial Status']) return false;
+        
+        // Filtrar solo órdenes pagadas
+        if (row['Financial Status'] !== 'paid') return false;
+        
+        // Parsear fecha (formato: "2025-07-30 20:21:44 -0600")
+        const createdAt = row['Created at'];
+        const date = new Date(createdAt);
+        
+        // Verificar mes y año
+        const orderMonth = date.getMonth() + 1; // getMonth() es 0-based
+        const orderYear = date.getFullYear();
+        
+        return orderMonth === targetMonth && orderYear === targetYear;
+        
+      } catch (error) {
+        console.warn('⚠️ Error procesando fila:', error.message);
+        return false;
+      }
+    });
+    
+    console.log(`🔍 Registros filtrados (${targetMonth}/${targetYear}, pagados): ${filteredData.length}`);
+    
+    if (filteredData.length === 0) {
+      return { success: true, orders: [], totalRecords: 0 };
+    }
+    
+    // Convertir datos Excel a formato WooCommerce
+    const wooCommerceOrders = convertExcelToWooCommerce(filteredData);
+    
+    console.log(`✅ Órdenes convertidas a formato WooCommerce: ${wooCommerceOrders.length}`);
+    
+    return {
+      success: true,
+      orders: wooCommerceOrders,
+      totalRecords: filteredData.length
+    };
+    
+  } catch (error) {
+    console.error('❌ Error procesando Excel histórico:', error);
+    return {
+      success: false,
+      orders: [],
+      error: error.message,
+      totalRecords: 0
+    };
+  }
+};
+
+// Función para convertir datos Excel al formato WooCommerce API
+const convertExcelToWooCommerce = (excelData) => {
+  try {
+    console.log('🔄 Convirtiendo Excel → WooCommerce...');
+    
+    // Agrupar por Name (orden única) ya que múltiples filas = múltiples productos
+    const ordersMap = new Map();
+    
+    excelData.forEach(row => {
+      const orderName = row['Name']; // Ej: "#11287Adapto"
+      
+      if (!ordersMap.has(orderName)) {
+        // Crear nueva orden con estructura WooCommerce
+        const order = {
+          id: parseInt(orderName.replace(/[^0-9]/g, '') || '0'), // Extraer número del Name
+          number: orderName,
+          status: 'completed', // Órdenes pagadas históricas = completed
+          date_created: formatExcelDateToISO(row['Created at']),
+          date_paid: formatExcelDateToISO(row['Paid at']),
+          total: parseFloat(row['Total'] || '0').toString(),
+          total_tax: parseFloat(row['Taxes'] || '0').toString(),
+          currency: row['Currency'] || 'MXN',
+          payment_method: mapPaymentMethod(row['Payment Method']),
+          payment_method_title: row['Payment Method'] || 'Desconocido',
+          billing: {
+            email: row['Email'] || '',
+            first_name: extractFirstName(row['Billing Name'] || ''),
+            last_name: extractLastName(row['Billing Name'] || ''),
+            address_1: row['Billing Street'] || '',
+            city: row['Billing City'] || '',
+            state: row['Billing Province'] || '',
+            country: row['Billing Country'] || 'MX',
+            postcode: row['Billing Zip'] || ''
+          },
+          shipping: {
+            first_name: extractFirstName(row['Shipping Name'] || ''),
+            last_name: extractLastName(row['Shipping Name'] || ''),
+            address_1: row['Shipping Street'] || '',
+            city: row['Shipping City'] || '',
+            state: row['Shipping Province'] || '',
+            country: row['Shipping Country'] || 'MX',
+            postcode: row['Shipping Zip'] || ''
+          },
+          line_items: [],
+          coupon_lines: [],
+          shipping_lines: [
+            {
+              method_title: row['Shipping Method'] || 'Envío estándar',
+              total: parseFloat(row['Shipping'] || '0').toString()
+            }
+          ]
+        };
+        
+        // Agregar cupón si existe
+        if (row['Discount Code'] && row['Discount Amount']) {
+          order.coupon_lines.push({
+            code: row['Discount Code'],
+            discount: parseFloat(row['Discount Amount']).toString()
+          });
+        }
+        
+        ordersMap.set(orderName, order);
+      }
+      
+      // Agregar producto a la orden existente
+      const order = ordersMap.get(orderName);
+      if (row['Lineitem name']) {
+        order.line_items.push({
+          id: Math.floor(Math.random() * 1000000), // ID temporal único
+          name: row['Lineitem name'],
+          quantity: parseInt(row['Lineitem quantity'] || '1'),
+          price: parseFloat(row['Lineitem price'] || '0').toString(),
+          total: (parseFloat(row['Lineitem price'] || '0') * parseInt(row['Lineitem quantity'] || '1')).toString(),
+          sku: row['Lineitem sku'] || ''
+        });
+      }
+    });
+    
+    const orders = Array.from(ordersMap.values());
+    console.log(`📊 Órdenes únicas procesadas: ${orders.length}`);
+    
+    return orders;
+    
+  } catch (error) {
+    console.error('❌ Error convirtiendo Excel a WooCommerce:', error);
+    return [];
+  }
+};
+
+// Funciones auxiliares para conversión
+const formatExcelDateToISO = (excelDate) => {
+  try {
+    if (!excelDate) return new Date().toISOString();
+    const date = new Date(excelDate);
+    return date.toISOString();
+  } catch (error) {
+    return new Date().toISOString();
+  }
+};
+
+const mapPaymentMethod = (paymentMethod) => {
+  if (!paymentMethod) return 'unknown';
+  
+  const method = paymentMethod.toLowerCase();
+  if (method.includes('stripe') || method.includes('card')) return 'stripe';
+  if (method.includes('paypal')) return 'ppcp-gateway';
+  if (method.includes('transfer')) return 'bacs';
+  return 'other';
+};
+
+const extractFirstName = (fullName) => {
+  if (!fullName) return '';
+  const parts = fullName.split(' ');
+  return parts[0] || '';
+};
+
+const extractLastName = (fullName) => {
+  if (!fullName) return '';
+  const parts = fullName.split(' ');
+  return parts.slice(1).join(' ') || '';
 };
 
 // Función para cargar el mapeo de costos de Envia.com
