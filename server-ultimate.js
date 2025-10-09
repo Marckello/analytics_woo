@@ -2115,8 +2115,8 @@ const getHTML = () => {
                     <div class="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent absolute top-0"></div>
                 </div>
                 <div class="mt-6 text-center">
-                    <p class="text-lg font-medium text-gray-700">Conectando con WooCommerce</p>
-                    <p class="text-sm text-gray-500 mt-2">Procesando datos de ventas... Esto puede tardar 10-15 segundos</p>
+                    <p id="loading-title" class="text-lg font-medium text-gray-700">Conectando con WooCommerce</p>
+                    <p id="loading-subtitle" class="text-sm text-gray-500 mt-2">Procesando datos de ventas... Esto puede tardar 10-15 segundos</p>
                     <div class="mt-4 flex items-center justify-center space-x-2">
                         <div class="flex space-x-1">
                             <div class="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
@@ -3547,6 +3547,27 @@ const getHTML = () => {
         }
 
         // Cargar dashboard
+        // Función para actualizar el texto del loader según el período
+        function updateLoaderText() {
+          const period = activePeriod;
+          const titleElement = document.getElementById('loading-title');
+          const subtitleElement = document.getElementById('loading-subtitle');
+          
+          // Verificar si es período histórico (enero-julio 2025)
+          const historicalPeriods = ['enero-2025', 'febrero-2025', 'marzo-2025', 'abril-2025', 'mayo-2025', 'junio-2025', 'julio-2025'];
+          const isHistorical = historicalPeriods.includes(period);
+          
+          if (isHistorical) {
+            // Período histórico - PostgreSQL
+            titleElement.textContent = 'Conectando con PostgreSQL';
+            subtitleElement.textContent = 'Procesando datos históricos... Esto puede tardar 10-15 segundos';
+          } else {
+            // Período actual - WooCommerce  
+            titleElement.textContent = 'Conectando con WooCommerce';
+            subtitleElement.textContent = 'Procesando datos de ventas... Esto puede tardar 10-15 segundos';
+          }
+        }
+
         async function loadDashboard() {
           // Verificar autenticación antes de proceder
           if (!checkAuthBeforeLoad()) {
@@ -3557,6 +3578,9 @@ const getHTML = () => {
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('dashboard').classList.add('hidden');
             document.getElementById('error').classList.add('hidden');
+            
+            // Actualizar texto del loader según el período
+            updateLoaderText();
 
             // Construir parámetros de query
             let queryParams = new URLSearchParams();
@@ -5685,6 +5709,58 @@ const server = http.createServer(async (req, res) => {
           }, null, 2));
         }
       });
+      return;
+      
+    } else if (pathname === '/api/test-db' && req.method === 'GET') {
+      // 🔓 ENDPOINT PÚBLICO - Testing PostgreSQL sin autenticación
+      try {
+        const month = query.month || '1'; // Enero por defecto
+        const year = query.year || '2025';
+        
+        console.log(`🔓 PUBLIC TESTING: PostgreSQL para ${month}/${year}`);
+        
+        // Test 1: Conexión PostgreSQL
+        const connectionTest = await testConnection();
+        console.log('📡 Conexión PostgreSQL:', connectionTest ? '✅ OK' : '❌ FAIL');
+        
+        // Test 2: Consulta datos históricos
+        const historicalResult = await getHistoricalOrdersFromDB(parseInt(month), parseInt(year));
+        console.log('📊 Datos históricos:', historicalResult.success ? '✅ OK' : '❌ FAIL');
+        
+        // Respuesta simplificada
+        const response = {
+          success: true,
+          timestamp: new Date().toISOString(),
+          postgresql_connection: connectionTest ? 'CONECTADO' : 'ERROR',
+          historical_data: {
+            status: historicalResult.success ? 'OK' : 'ERROR',
+            records_found: historicalResult.totalRecords || 0,
+            orders_processed: historicalResult.orders ? historicalResult.orders.length : 0,
+            error: historicalResult.error || null
+          },
+          tested_period: `${month}/${year}`,
+          database_host: process.env.DB_HOST || 'dashboard_adapto_woo_docs_adapto',
+          sample_orders: historicalResult.orders ? historicalResult.orders.slice(0, 2).map(order => ({
+            id: order.id,
+            number: order.number,
+            total: order.total,
+            date_created: order.date_created,
+            items_count: order.line_items ? order.line_items.length : 0
+          })) : []
+        };
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(response, null, 2));
+        
+      } catch (error) {
+        console.error('❌ Error en endpoint público:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: error.message,
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      }
       return;
       
     } else if (pathname === '/api/test-postgres' && req.method === 'GET') {
