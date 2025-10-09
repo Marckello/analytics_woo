@@ -26,6 +26,9 @@ logs/
 # Cloudflare Workers (for sandbox only) 
 .wrangler/
 
+# Core dumps
+core.*
+
 # Backup files
 *.backup
 *.bak

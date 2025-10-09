@@ -5355,8 +5355,9 @@ const server = http.createServer(async (req, res) => {
       });
       req.on('end', async () => {
         try {
-          const { email, password } = JSON.parse(body);
-          const result = await authenticateUser(email, password);
+          const { username, email, password } = JSON.parse(body);
+          const emailToUse = username || email; // Soportar tanto username como email
+          const result = await authenticateUser(emailToUse, password);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(result));
         } catch (error) {
