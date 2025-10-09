@@ -3585,7 +3585,8 @@ const getHTML = () => {
         const isHistoricalPeriod = (period) => {
           const historicalPeriods = [
             'enero-2025', 'febrero-2025', 'marzo-2025', 'abril-2025', 
-            'mayo-2025', 'junio-2025', 'julio-2025'
+            'mayo-2025', 'junio-2025', 'julio-2025', 'august-2025', 
+            'september-2025', 'october-2025'
           ];
           return historicalPeriods.includes(period);
         };
@@ -3635,11 +3636,11 @@ const getHTML = () => {
             case 'julio-2025':
               return { start_date: '2025-07-01', end_date: '2025-07-31', days: 31, historical: true };
             case 'august-2025':
-              return { start_date: '2025-08-01', end_date: '2025-08-31', days: 31 };
+              return { start_date: '2025-08-01', end_date: '2025-08-31', days: 31, historical: true };
             case 'september-2025':
-              return { start_date: '2025-09-01', end_date: '2025-09-30', days: 30 };
+              return { start_date: '2025-09-01', end_date: '2025-09-30', days: 30, historical: true };
             case 'october-2025':
-              return { start_date: '2025-10-01', end_date: '2025-10-31', days: 31 };
+              return { start_date: '2025-10-01', end_date: '2025-10-31', days: 31, historical: true };
               
             default:
               // Por defecto últimos 7 días
