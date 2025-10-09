@@ -5763,6 +5763,49 @@ const server = http.createServer(async (req, res) => {
       }
       return;
       
+    } else if (pathname === '/api/check-columns' && req.method === 'GET') {
+      // 🔍 ENDPOINT PARA VERIFICAR COLUMNAS DE LA TABLA
+      try {
+        const { pool } = require('./database.js');
+        
+        // Verificar estructura de la tabla
+        const columnsQuery = `
+          SELECT column_name, data_type 
+          FROM information_schema.columns 
+          WHERE table_name = 'data_historica'
+          ORDER BY ordinal_position
+        `;
+        
+        const columnsResult = await pool.query(columnsQuery);
+        
+        // También obtener una muestra de datos
+        const sampleQuery = `SELECT * FROM data_historica LIMIT 2`;
+        const sampleResult = await pool.query(sampleQuery);
+        
+        const response = {
+          success: true,
+          timestamp: new Date().toISOString(),
+          table_name: 'data_historica',
+          columns: columnsResult.rows,
+          sample_data: sampleResult.rows,
+          total_columns: columnsResult.rows.length,
+          sample_records: sampleResult.rows.length
+        };
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(response, null, 2));
+        
+      } catch (error) {
+        console.error('❌ Error verificando columnas:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: error.message,
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      }
+      return;
+      
     } else if (pathname === '/api/test-postgres' && req.method === 'GET') {
       // Endpoint para probar conexión PostgreSQL
       authMiddleware(req, res, async () => {

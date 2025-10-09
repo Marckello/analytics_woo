@@ -298,35 +298,15 @@ const getHistoricalOrdersFromDB = async (month, year) => {
   try {
     console.log(`🗄️ Consultando PostgreSQL - data_historica para mes: ${month}, año: ${year}`);
     
-    // Query para obtener datos históricos filtrados por mes, año y estado pagado
+    // Query para obtener datos históricos - PRIMERO verificar nombres de columnas
     const query = `
-      SELECT 
-        "Order Number" as order_number,
-        "Date" as date_created,
-        "Financial Status" as status,
-        "Total" as total,
-        "Paid at" as date_paid,
-        "Customer Email" as billing_email,
-        "Customer First Name" as billing_first_name,
-        "Customer Last Name" as billing_last_name,
-        "Shipping Street" as shipping_address_1,
-        "Shipping City" as shipping_city,
-        "Shipping Province" as shipping_state,
-        "Shipping Country" as shipping_country,
-        "Shipping Zip" as shipping_postcode,
-        "Lineitem name" as product_name,
-        "Lineitem quantity" as quantity,
-        "Lineitem price" as product_price,
-        "Lineitem sku" as product_sku,
-        "Discount Code" as coupon_code,
-        "Discount Amount" as coupon_amount,
-        "Shipping Method" as shipping_method,
-        "Taxes" as total_tax
+      SELECT *
       FROM data_historica 
       WHERE EXTRACT(MONTH FROM TO_DATE("Date", 'MM/DD/YYYY')) = $1
         AND EXTRACT(YEAR FROM TO_DATE("Date", 'MM/DD/YYYY')) = $2
         AND "Financial Status" = 'paid'
       ORDER BY TO_DATE("Date", 'MM/DD/YYYY') DESC
+      LIMIT 10
     `;
     
     const result = await pool.query(query, [month, year]);
