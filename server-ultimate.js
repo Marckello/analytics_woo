@@ -4226,14 +4226,37 @@ const getHTML = () => {
           try {
             console.log('🔍 Cargando datos de Google Ads...');
             
-            // NUEVO: Verificar si es período histórico y ocultar sección completa
+            // NUEVO: Para períodos históricos, verificar si hay datos reales antes de ocultar
             if (isHistoricalPeriod(activePeriod)) {
-              console.log('📊 Google Ads: Período histórico detectado - OCULTANDO sección completa');
-              const googleAdsSection = document.querySelector('.glass-effect:has(#google-ads-loading)');
-              if (googleAdsSection) {
-                googleAdsSection.style.display = 'none';
+              console.log('📊 Google Ads: Período histórico detectado - Verificando si hay datos reales...');
+              
+              // Hacer una verificación rápida de datos
+              try {
+                const dateRange = getPeriodDateRange(activePeriod, customDateRange);
+                const testResponse = await axios.get('/api/google-ads?start_date=' + dateRange.start_date + '&end_date=' + dateRange.end_date);
+                const hasData = testResponse.data.success && testResponse.data.data && testResponse.data.data.metrics && (
+                  testResponse.data.data.metrics.impressions > 0 || 
+                  testResponse.data.data.metrics.clicks > 0 || 
+                  parseFloat(testResponse.data.data.metrics.cost) > 0
+                );
+                
+                if (!hasData) {
+                  console.log('📊 Google Ads: Sin datos reales para período histórico - OCULTANDO sección');
+                  const googleAdsSection = document.querySelector('.glass-effect:has(#google-ads-loading)');
+                  if (googleAdsSection) {
+                    googleAdsSection.style.display = 'none';
+                  }
+                  return;
+                }
+                console.log('📊 Google Ads: Datos reales encontrados para período histórico - MOSTRANDO sección');
+              } catch (error) {
+                console.log('📊 Google Ads: Error verificando datos históricos - OCULTANDO sección');
+                const googleAdsSection = document.querySelector('.glass-effect:has(#google-ads-loading)');
+                if (googleAdsSection) {
+                  googleAdsSection.style.display = 'none';
+                }
+                return;
               }
-              return;
             }
             
             // Verificar que los elementos existan

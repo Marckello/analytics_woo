@@ -45,10 +45,13 @@ const getAccountInfo = async () => {
   console.log('🔍 Obteniendo información básica de la cuenta Google Ads...');
   
   if (!googleAdsClient) {
-    console.log('❌ Google Ads: Cliente no inicializado');
-    return {
-      error: 'Google Ads cliente no inicializado'
-    };
+    console.log('🔧 Google Ads: Cliente no inicializado, inicializando...');
+    const initResult = initializeGoogleAdsClient();
+    if (!initResult) {
+      return {
+        error: 'No se pudo inicializar cliente Google Ads'
+      };
+    }
   }
 
   try {
@@ -110,8 +113,11 @@ const getCampaigns = async (limit = 10) => {
   console.log(`🔍 Obteniendo campañas Google Ads (${limit} máximo)...`);
   
   if (!googleAdsClient) {
-    console.log('❌ Google Ads: Cliente no disponible para campañas');
-    return [];
+    console.log('🔧 Google Ads: Cliente no inicializado, inicializando...');
+    const initResult = initializeGoogleAdsClient();
+    if (!initResult) {
+      return [];
+    }
   }
 
   try {
@@ -159,18 +165,25 @@ const getCampaigns = async (limit = 10) => {
 };
 
 // Función para obtener métricas básicas de cuenta
-const getAccountMetrics = async (dateRange = 30) => {
-  console.log(`🔍 Obteniendo métricas Google Ads para los últimos ${dateRange} días...`);
+const getAccountMetrics = async (dateRange = 30, startDate = null, endDate = null) => {
+  if (startDate && endDate) {
+    console.log(`🔍 Obteniendo métricas Google Ads desde ${startDate} hasta ${endDate}...`);
+  } else {
+    console.log(`🔍 Obteniendo métricas Google Ads para los últimos ${dateRange} días...`);
+  }
   
   if (!googleAdsClient) {
-    console.log('❌ Google Ads: Cliente no disponible para métricas');
-    return {
-      impressions: 0,
-      clicks: 0,
-      cost: 0,
-      conversions: 0,
-      error: 'Cliente no inicializado'
-    };
+    console.log('🔧 Google Ads: Cliente no inicializado, inicializando...');
+    const initResult = initializeGoogleAdsClient();
+    if (!initResult) {
+      return {
+        impressions: 0,
+        clicks: 0,
+        cost: 0,
+        conversions: 0,
+        error: 'No se pudo inicializar cliente'
+      };
+    }
   }
 
   try {
@@ -180,17 +193,35 @@ const getAccountMetrics = async (dateRange = 30) => {
       refresh_token: GOOGLE_ADS_REFRESH_TOKEN
     });
 
-    const query = `
-      SELECT 
-        metrics.impressions,
-        metrics.clicks,
-        metrics.cost_micros,
-        metrics.conversions,
-        metrics.ctr,
-        metrics.average_cpc
-      FROM customer
-      WHERE segments.date DURING LAST_${dateRange}_DAYS
-    `;
+    let query;
+    
+    if (startDate && endDate) {
+      // Usar fechas específicas para períodos históricos
+      query = `
+        SELECT 
+          metrics.impressions,
+          metrics.clicks,
+          metrics.cost_micros,
+          metrics.conversions,
+          metrics.ctr,
+          metrics.average_cpc
+        FROM customer
+        WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+      `;
+    } else {
+      // Usar días relativos para períodos actuales
+      query = `
+        SELECT 
+          metrics.impressions,
+          metrics.clicks,
+          metrics.cost_micros,
+          metrics.conversions,
+          metrics.ctr,
+          metrics.average_cpc
+        FROM customer
+        WHERE segments.date DURING LAST_${dateRange}_DAYS
+      `;
+    }
 
     const response = await customer.query(query);
     
@@ -234,14 +265,27 @@ const getAccountMetrics = async (dateRange = 30) => {
 };
 
 // Función para obtener todos los insights de Google Ads
-const getGoogleAdsInsights = async (dateRange = 30) => {
-  console.log(`🔍 Obteniendo insights Google Ads oficial para los últimos ${dateRange} días...`);
+const getGoogleAdsInsights = async (dateRange = 30, startDate = null, endDate = null) => {
+  if (startDate && endDate) {
+    console.log(`🔍 Obteniendo insights Google Ads oficial desde ${startDate} hasta ${endDate}...`);
+  } else {
+    console.log(`🔍 Obteniendo insights Google Ads oficial para los últimos ${dateRange} días...`);
+  }
 
   try {
+    // CRÍTICO: Asegurar que el cliente esté inicializado
+    if (!googleAdsClient) {
+      console.log('🔧 Google Ads: Cliente no inicializado, inicializando...');
+      const initResult = initializeGoogleAdsClient();
+      if (!initResult) {
+        throw new Error('No se pudo inicializar cliente Google Ads');
+      }
+    }
+
     const [accountInfo, campaigns, metrics] = await Promise.all([
       getAccountInfo(),
       getCampaigns(10),
-      getAccountMetrics(dateRange)
+      getAccountMetrics(dateRange, startDate, endDate)
     ]);
 
     const insights = {
