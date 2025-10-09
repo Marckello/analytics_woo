@@ -4,10 +4,10 @@
       "id": 1,
       "email": "marco@serrano.marketing",
       "name": "Marco Serrano",
-      "password": "$2b$12$FAGHyXOY/a51xaDXEKBP4eGW0/93/sh0graUfS5wkmUU2Dn0sLl4y",
+      "password": "$2b$12$Mjm29sq3iOG/PB/.h0dFxOkCigd3t/Q2JGrDp7Quuq8IFFmXqod2S",
       "role": "admin",
       "createdAt": "2025-10-01T09:04:30.498Z",
-      "lastLogin": "2025-10-06T00:23:17.587Z",
+      "lastLogin": "2025-10-09T01:39:41.640Z",
       "isActive": true
     },
     {
